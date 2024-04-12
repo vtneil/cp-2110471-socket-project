@@ -4,6 +4,6 @@ from .client_config import *
 __all__ = [
     'TcpClient',
     'UdpClient',
-    'HOST',
-    'PORT'
+    'REMOTE_HOST',
+    'REMOTE_TCP_PORT'
 ]

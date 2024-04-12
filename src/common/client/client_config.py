@@ -1,2 +1,3 @@
-HOST = 'localhost'
-PORT = 50000
+REMOTE_HOST = 'localhost'
+REMOTE_TCP_PORT = 50000
+REMOTE_UDP_PORT = 50001

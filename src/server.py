@@ -1,5 +1,4 @@
 import sys
-import threading
 from common.logger import logger
 
 if sys.version_info < (3, 12):
@@ -7,18 +6,11 @@ if sys.version_info < (3, 12):
 
 from common.server import *
 
-
-def start_server():
-    with TcpServer(HOST, PORT) as server:
-        server.start()
-
-
 if __name__ == '__main__':
     logger.info('Starting server...')
 
-    server_thread = threading.Thread(target=start_server, daemon=True)
-    server_thread.start()
+    chat_server = ChatServer((HOST, PORT))
 
-    server_thread.join()
+    chat_server.wait()
 
     logger.info('Stopped server...')
