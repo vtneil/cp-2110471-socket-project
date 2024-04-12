@@ -1,4 +1,4 @@
-from .socket_server import *
+from .server_socket import *
 from .server_config import *
 
 __all__ = [
