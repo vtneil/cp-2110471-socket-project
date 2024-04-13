@@ -1,10 +1,10 @@
-import socket
 from typing import Callable
 from abc import abstractmethod
 
 from .. import *
 from .. import logger
 import threading
+import socket
 
 
 class Server:
@@ -13,7 +13,8 @@ class Server:
         self.__address = (host, port)
 
     @abstractmethod
-    def start(self, callback: Callable[[socket.socket, tuple[str, int]], None]):
+    def start(self,
+              callback: Callable[[socket.socket, tuple[str, int]], None] | Callable[[bytes, tuple[str, int]], None]):
         pass
 
     def stop(self):
@@ -55,15 +56,39 @@ class TcpServer(Server):
                             args=(client_sock, client_addr),
                             daemon=True
                         ).start()
-                except TimeoutError:
+                except socket.timeout:
                     pass
 
         except Exception as e:
-            logger.error(f'Server error: {e}')
+            logger.exception(f'TCP Server error: {e}')
             raise
 
 
 class UdpServer(Server):
     def __init__(self, host: str, port: int):
         super().__init__(host, port, new_socket('udp'))
-        raise NotImplementedError('Not implemented yet!')
+        self._sock.settimeout(1.)
+
+    def start(self, callback: Callable[[bytes, tuple[str, int]], None]):
+        self._sock.bind(self.address)
+        logger.info(f'UDP Server started at {self.address[0]}:{self.address[1]}. Waiting for connections...')
+        self.__receive_data(callback=callback)
+
+    def __receive_data(self, callback: Callable[[bytes, tuple[str, int]], None]):
+        try:
+            while True:
+                try:
+                    client_data, client_addr = udp_sock_recv(self._sock, 1024)
+                    logger.info(f'Received data from {client_addr}')
+
+                    if callback:
+                        threading.Thread(
+                            target=callback,
+                            args=(client_data, client_addr),
+                            daemon=True
+                        ).start()
+                except socket.timeout:
+                    pass
+        except Exception as e:
+            logger.exception(f'UDP Server error: {e}')
+            raise
