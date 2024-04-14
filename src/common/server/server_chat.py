@@ -1,3 +1,5 @@
+import time
+
 from .. import *
 from . import TcpServer
 
@@ -9,9 +11,9 @@ class ChatServer:
     def __init__(self,
                  address: tuple[str, int],
                  server_name: str):
-        # List of chat clients, thread locks, and chat groups
+        # List of chat clients, socket pools, and chat groups
         self.__clients: dict[str, User] = {}
-        self.__locks: dict[str, threading.Lock] = {}
+        self.__sock_pools: dict[str, SocketPool] = {}
         self.__groups: dict[str, set[str]] = {}
 
         # TCP Server
@@ -72,7 +74,10 @@ class ChatServer:
             # Clean up when client closed the connections or error has occurred
             if this_clients[0] in self.__clients:
                 # Leave group list
+                just_left = []
                 for group in self.__groups:
+                    if this_clients[0] in self.__groups[group]:
+                        just_left.append(group)
                     self.__groups[group].discard(this_clients[0])
 
                 # Close the socket
@@ -80,24 +85,25 @@ class ChatServer:
                 logger.info(f'Connection closed with {addr}')
 
                 # Leave client list
-                if this_clients[0] in self.__clients:
-                    self.__locks.pop(this_clients[0])
+                if this_clients[0] in self.__sock_pools:
+                    self.__sock_pools.pop(this_clients[0])
                 if this_clients[0] in self.__clients:
                     self.__clients.pop(this_clients[0])
 
                 # Clear empty groups inefficiently
-                self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v}
-
-                logger.info(f'{self.__clients}')
-                logger.info(f'{self.__groups}')
+                # Don't clear other empty groups (may just been created)
+                self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v and k in just_left}
 
     def __process_instruction(self,
                               clients: list[str | None],
                               addr: tuple[str, int] | None,
                               sock: socket.socket,
                               message: MessageProtocol):
+        logger.info(f'Processing instruction from {addr} using {sock}')
+
         if message.message_type == MessageProtocolCode.INSTRUCTION.IDENTIFY_MASTER:
             # Initial identification
+            # Made by master
 
             # Exit if invalid source
             if not (message.src and message.src.username):
@@ -110,7 +116,7 @@ class ChatServer:
                                                       group=None,
                                                       address=addr,
                                                       sock_master=sock,
-                                                      sock_slave=None)
+                                                      sock_slaves=[])
                 tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
@@ -118,7 +124,7 @@ class ChatServer:
                     response=MessageProtocolResponse.OK,
                     body=None
                 ))
-                logger.info('Client joined successfully!')
+                logger.info(f'Client {message.src.username} master joined successfully!')
             else:
                 # Client already existed
                 tcp_sock_send(sock, new_message_proto(
@@ -130,10 +136,9 @@ class ChatServer:
                 ))
                 logger.warning('Client name already exists!')
 
-            logger.info(f'{self.__clients}')
-
-        elif message.message_type == MessageProtocolCode.INSTRUCTION.IDENTIFY_SLAVE:
-            # Initial identification for slave socket
+        elif message.message_type == MessageProtocolCode.INSTRUCTION.JOIN_SLAVE:
+            # Joining slave socket from client
+            # Made by slaves
 
             # Exit if invalid source
             if not (message.src and message.src.username):
@@ -148,12 +153,12 @@ class ChatServer:
                     response=MessageProtocolResponse.NOT_EXIST,
                     body=None
                 ))
-                logger.warning('Client master not found! Unable to add slave')
+                logger.warning(f'Client {message.src.username} master not found! Unable to add slave')
             else:
-                # Add sock and new lock
+                # Add new socket
                 clients[0] = message.src.username
-                self.__clients[clients[0]].sock_slave = sock
-                self.__locks[clients[0]] = threading.Lock()
+                self.__clients[clients[0]].sock_slaves.append(sock)
+
                 tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
@@ -161,9 +166,38 @@ class ChatServer:
                     response=MessageProtocolResponse.OK,
                     body=None
                 ))
-                logger.info('Client slave joined successfully!')
+                logger.info(f'Client {message.src.username} slave joined successfully!')
 
-            logger.info(f'{self.__clients}')
+        elif message.message_type == MessageProtocolCode.INSTRUCTION.IDENTIFY_SLAVES:
+            # Initial identification for slave socket
+            # Made by slaves
+
+            # Exit if invalid source
+            if not (message.src and message.src.username):
+                return
+
+            if message.src.username not in self.__clients:
+                # Client not found
+                tcp_sock_send(sock, new_message_proto(
+                    src=None,
+                    dst=message.src,
+                    message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                    response=MessageProtocolResponse.NOT_EXIST,
+                    body=None
+                ))
+                logger.warning(f'Client {message.src.username} master not found! Unable to add slave')
+            else:
+                # Confirm socket list
+                self.__sock_pools[clients[0]] = SocketPool(self.__clients[clients[0]].sock_slaves)
+
+                tcp_sock_send(sock, new_message_proto(
+                    src=None,
+                    dst=message.src,
+                    message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                    response=MessageProtocolResponse.OK,
+                    body=None
+                ))
+                logger.info(f'Client {message.src.username} slave confirmed by master!')
 
         else:
             # Other instructions later after identification
@@ -242,8 +276,6 @@ class ChatServer:
                         response=MessageProtocolResponse.ERROR,
                         body=None
                     ))
-                logger.info(f'{self.__clients}')
-                logger.info(f'{self.__groups}')
 
             elif message.message_type == MessageProtocolCode.INSTRUCTION.GROUP.JOIN:
                 body = message.body
@@ -269,9 +301,6 @@ class ChatServer:
                         response=MessageProtocolResponse.ERROR,
                         body=None
                     ))
-
-                logger.info(f'{self.__clients}')
-                logger.info(f'{self.__groups}')
 
             elif message.message_type == MessageProtocolCode.INSTRUCTION.GROUP.LEAVE:
                 # Remove user from specific group
@@ -314,16 +343,16 @@ class ChatServer:
                         body=None
                     ))
 
-                logger.info(f'{self.__clients}')
-                logger.info(f'{self.__groups}')
-
             elif message.message_type == MessageProtocolCode.INSTRUCTION.GROUP.LEAVE_ALL:
                 # Remove user from every group
+                just_left = []
                 for group in self.__groups:
+                    if message.src.username in self.__groups[group]:
+                        just_left.append(group)
                     self.__groups[group].discard(message.src.username)
 
                 # Clear empty groups
-                self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v}
+                self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v and k in just_left}
 
                 # Unassign group from user
                 self.__clients[clients[0]].group = None
@@ -337,14 +366,34 @@ class ChatServer:
                     body=None
                 ))
 
-                logger.info(f'{self.__clients}')
-                logger.info(f'{self.__groups}')
+    def __send_each(self,
+                    target_client: str,
+                    message: MessageProtocol):
+        # Skip sending to the original sender
+        if target_client == message.src.username:
+            return
+
+        # Message to target
+        logger.info(f'Direct messaging '
+                    f'from {message.src.username} '
+                    f'to {message.dst.group}/{target_client}... '
+                    f'(Semaphore {self.__sock_pools[target_client].value})')
+
+        with self.__sock_pools[target_client].get_socket() as target_sock:
+            tcp_sock_send(target_sock, message)
+
+        logger.info(f'Finished request '
+                    f'from {message.src.username} '
+                    f'to {message.dst.group}/{target_client}... '
+                    f'(Semaphore {self.__sock_pools[target_client].value})')
 
     def __process_data(self,
                        clients: list[str | None],
                        addr: tuple[str, int] | None,
                        sock: socket.socket,
                        message: MessageProtocol):
+        logger.info(f'Processing data from {addr}')
+
         source_exists: bool = message.src and message.src.username and message.src.username in self.__clients
 
         # Exit if not identified
@@ -364,39 +413,42 @@ class ChatServer:
                 return
 
             logger.info(f'Group chat broadcast for Group {message.dst.group}')
-            for target_client in self.__groups[message.dst.group]:
-                if target_client == message.src.username:
-                    continue
 
-                with self.__locks[target_client]:
-                    logger.info(
-                        f'Direct messaging from {message.src.username} to {message.dst.group}/{target_client}...')
-                    tcp_sock_send(self.__clients[target_client].sock_slave, message)
+            threads = [threading.Thread(
+                target=self.__send_each,
+                args=(target_client, message),
+                daemon=True
+            ) for target_client in self.__groups[message.dst.group]]
 
-                    # Always reply successful message when done
-                    tcp_sock_send(sock, new_message_proto(
-                        src=None,
-                        dst=message.src,
-                        message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
-                        response=MessageProtocolResponse.OK,
-                        body=None
-                    ))
+            for thr in threads:
+                thr.start()
+
+            # Always reply successful message when all done
+            tcp_sock_send(sock, new_message_proto(
+                src=None,
+                dst=message.src,
+                message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                response=MessageProtocolResponse.OK,
+                body=None
+            ))
 
         elif destination_is_private:
             if message.src.username != message.dst.username:
-                with self.__locks[message.dst.username]:
-                    # WANT TO SEND PRIVATE CHAT
-                    logger.info(f'Direct messaging from {message.src.username} to {message.dst.username}...')
-                    tcp_sock_send(self.__clients[message.dst.username].sock_slave, message)
 
-                    # Always reply successful message when done
-                    tcp_sock_send(sock, new_message_proto(
-                        src=None,
-                        dst=message.src,
-                        message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
-                        response=MessageProtocolResponse.OK,
-                        body=None
-                    ))
+                threading.Thread(
+                    target=self.__send_each,
+                    args=(message.dst.username, message),
+                    daemon=True
+                ).start()
+
+                # Always reply successful message when done
+                tcp_sock_send(sock, new_message_proto(
+                    src=None,
+                    dst=message.src,
+                    message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                    response=MessageProtocolResponse.OK,
+                    body=None
+                ))
             else:
                 logger.info(f'Client loopback tried by: {message.src.username}')
                 tcp_sock_send(sock, new_message_proto(

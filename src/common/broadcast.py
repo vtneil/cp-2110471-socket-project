@@ -62,7 +62,7 @@ class UdpBroadcast:
         return thr
 
     def __listen_next(self):
-        data: tuple[MessageProtocol, Any] = udp_sock_recvfrom(self.__listener, 1024)
+        data: tuple[MessageProtocol, Any] = udp_sock_recvfrom(self.__listener, 16384)
         return data
 
     def __start_listen(self, callback: Callable[[MessageProtocol], None] | None) -> threading.Thread:
@@ -86,7 +86,3 @@ class UdpBroadcast:
         self.__listener_thread.join()
         self.__broadcaster.close()
         self.__listener.close()
-
-    def __del__(self):
-        logger.info('Closing broadcaster\'s sockets...')
-        self.stop()

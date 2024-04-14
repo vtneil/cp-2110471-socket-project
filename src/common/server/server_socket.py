@@ -2,7 +2,6 @@ from typing import Callable
 from abc import abstractmethod
 
 from .. import *
-from .. import logger
 import threading
 import socket
 
@@ -34,7 +33,7 @@ class Server:
 class TcpServer(Server):
     def __init__(self, host: str, port: int):
         super().__init__(host, port, new_socket('tcp'))
-        self._sock.settimeout(1.)
+        self._sock.settimeout(5.)
         logger.info('TCP Server is created.')
 
     def start(self, callback: Callable[[socket.socket, tuple[str, int]], None]):
@@ -67,7 +66,7 @@ class TcpServer(Server):
 class UdpServer(Server):
     def __init__(self, host: str, port: int):
         super().__init__(host, port, new_socket('udp'))
-        self._sock.settimeout(1.)
+        self._sock.settimeout(5.)
 
     def start(self, callback: Callable[[bytes, tuple[str, int]], None]):
         self._sock.bind(self.address)
@@ -78,7 +77,7 @@ class UdpServer(Server):
         try:
             while True:
                 try:
-                    client_data, client_addr = udp_sock_recvfrom(self._sock, 1024)
+                    client_data, client_addr = udp_sock_recvfrom(self._sock, 16384)
                     logger.info(f'Received data from {client_addr}')
 
                     if callback:

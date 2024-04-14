@@ -16,8 +16,9 @@ class MessageProtocolResponse:
 class MessageProtocolCode:
     class INSTRUCTION:
         IDENTIFY_MASTER = 1000
-        IDENTIFY_SLAVE = 1001
-        RESPONSE = 1002
+        IDENTIFY_SLAVES = 1001
+        JOIN_SLAVE = 1002
+        RESPONSE = 1003
 
         class BROADCAST:
             CLIENT_DISC = 1003

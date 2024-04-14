@@ -1,12 +1,11 @@
 import functools
 import socket
 import threading
+import time
 from typing import Any, Callable
+import queue
 
-from .. import UdpBroadcast
-from .. import new_user, new_message_proto
-from .. import logger
-from .. import MessageProtocol, MessageProtocolCode, MessageProtocolResponse
+from .. import *
 from . import TcpClient, UdpClient
 from . import REMOTE_HOST, REMOTE_TCP_PORT, REMOTE_UDP_PORT
 
@@ -23,27 +22,24 @@ def single(func):
 class ChatAgent:
     def __init__(self,
                  client_name: str,
+                 open_sockets: int = 64,
                  recv_callback: Callable[[MessageProtocol], None] | None = None,
                  disc_callback: Callable[[MessageProtocol], None] | None = None):
-        # Master client: for control from client
-        self.__master_client = TcpClient(client_name, REMOTE_HOST, REMOTE_TCP_PORT)
+        """
+        A simple chat agent (client side backend)
 
-        # Slave client: for control from server
-        self.__slave_client = TcpClient(client_name, REMOTE_HOST, REMOTE_TCP_PORT)
-
-        # Local network broadcast
-        self.__broadcaster = UdpBroadcast(service_name=client_name,
-                                          broadcast_mode=MessageProtocolCode.INSTRUCTION.BROADCAST.CLIENT_DISC,
-                                          disc_callback=disc_callback)
+        :param client_name: Client name (name to join)
+        :param open_sockets: Number of socket to open for concurrent data receive
+        :param recv_callback: Callback function on data receive (What to do with data?)
+        :param disc_callback: Callback function on local network discovery (What to do if I discover another device?)
+        """
         # Agent user
-        self.__user = new_user(username=client_name, group=None, address=None, sock_slave=None)
+        self.__user = new_user(username=client_name, group=None, address=None, sock_slaves=None)
 
-        # Lock for master socket
+        # Master client: for control transactions
+        self.__master_client = TcpClient(client_name, REMOTE_HOST, REMOTE_TCP_PORT)
+        self.__slave_clients = [TcpClient(client_name, REMOTE_HOST, REMOTE_TCP_PORT) for _ in range(open_sockets)]
         self.__sock_lock = threading.Lock()
-
-        # Receiving thread
-        self.__slave_flag = threading.Event()
-        self.__slave_thread = self.__start_receive(recv_callback)
 
         # Identification with server
         try:
@@ -52,8 +48,17 @@ class ChatAgent:
         except Exception:
             raise ConnectionError('Incorrect socket for server!')
 
-    def __del__(self):
-        self.stop()
+        # Slave client: for receiving data
+        self.__slave_flag = threading.Event()
+        self.__receive_queue: queue.Queue[MessageProtocol] = queue.Queue()
+        self.__slave_orchestrator, self.__slave_threads = self.__start_receive(recv_callback)
+
+        # Local network broadcast
+        self.__broadcaster = UdpBroadcast(service_name=client_name,
+                                          broadcast_mode=MessageProtocolCode.INSTRUCTION.BROADCAST.CLIENT_DISC,
+                                          disc_callback=disc_callback)
+
+        logger.info('Chat agent is successfully initialized!')
 
     def __enter__(self):
         return self
@@ -64,7 +69,9 @@ class ChatAgent:
     def stop(self):
         logger.info('Stopping slave thread...')
         self.__slave_flag.set()
-        self.__slave_thread.join()
+        self.__slave_orchestrator.join()
+        for thr in self.__slave_threads:
+            thr.join()
         self.__broadcaster.stop()
 
     @property
@@ -73,6 +80,7 @@ class ChatAgent:
 
     @single
     def __identify(self):
+        # Identify master socket
         response: MessageProtocol = self.__master_client.transaction(new_message_proto(
             src=self.__user,
             dst=None,
@@ -83,10 +91,23 @@ class ChatAgent:
         if response.response != MessageProtocolResponse.OK:
             return False
 
-        response: MessageProtocol = self.__slave_client.transaction(new_message_proto(
+        # Join slave sockets
+        for slave in self.__slave_clients:
+            response: MessageProtocol = slave.transaction(new_message_proto(
+                src=self.__user,
+                dst=None,
+                message_type=MessageProtocolCode.INSTRUCTION.JOIN_SLAVE,
+                body=None
+            ))
+
+            if response.response != MessageProtocolResponse.OK:
+                return False
+
+        # Identify slave sockets
+        response: MessageProtocol = self.__master_client.transaction(new_message_proto(
             src=self.__user,
             dst=None,
-            message_type=MessageProtocolCode.INSTRUCTION.IDENTIFY_SLAVE,
+            message_type=MessageProtocolCode.INSTRUCTION.IDENTIFY_SLAVES,
             body=None
         ))
 
@@ -213,20 +234,43 @@ class ChatAgent:
 
         return response.response
 
-    def __receive_next(self):
-        response: MessageProtocol = self.__slave_client.receive()
-        return response
+    def __start_receive(self,
+                        callback: Callable[[MessageProtocol], None] | None
+                        ) -> tuple[threading.Thread, list[threading.Thread]]:
+        def message_receive(client: TcpClient):
+            if not callback:
+                return
 
-    def __start_receive(self, callback: Callable[[MessageProtocol], None] | None) -> threading.Thread:
-        def indefinite_rx():
+            # Put in queue
             while not self.__slave_flag.is_set():
-                rx: MessageProtocol = self.__receive_next()
-                if rx and callback:
-                    callback(rx)
+                rx = client.receive()
+                if rx and isinstance(rx, MessageProtocol):
+                    self.__receive_queue.put(rx)
 
-        thr = threading.Thread(
-            target=indefinite_rx,
+        def message_orchestration():
+            if not callback:
+                return
+
+            # Get from queue and call the callback function
+            while not self.__slave_flag.is_set():
+                while not self.__receive_queue.empty():
+                    data = self.__receive_queue.get()
+                    callback(data)
+
+        threads = [threading.Thread(
+            target=message_receive,
+            args=(client,),
+            daemon=True
+        ) for client in self.__slave_clients]
+
+        for thr in threads:
+            thr.start()
+
+        orchestrator = threading.Thread(
+            target=message_orchestration,
             daemon=True
         )
-        thr.start()
-        return thr
+
+        orchestrator.start()
+
+        return orchestrator, threads

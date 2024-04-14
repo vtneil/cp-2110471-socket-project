@@ -12,15 +12,18 @@ def new_socket(socket_type: Literal['tcp', 'udp']) -> socket.socket:
     return sock
 
 
-def tcp_sock_send(sock: socket.socket, data: Any):
-    sock.sendall(serialize(data))
+def tcp_sock_send(sock: socket.socket, data: Any, buffer_size: int = 16384):
+    ser = serialize(data)
+    for i in range(0, len(ser), buffer_size):
+        chunk = ser[i:i + buffer_size]
+        sock.sendall(chunk)
 
 
 def udp_sock_send(sock: socket.socket, address: tuple[str, int], data: Any):
     sock.sendto(serialize(data), address)
 
 
-def tcp_sock_recv(sock: socket.socket, buffer_size: int = 1024, timeout: float | None = 2.) -> Any:
+def tcp_sock_recv(sock: socket.socket, buffer_size: int = 16384, timeout: float | None = 1.0) -> Any:
     """
     Raises socket.timeout if a timeout occurs
     """
@@ -47,7 +50,7 @@ def tcp_sock_recv(sock: socket.socket, buffer_size: int = 1024, timeout: float |
     return deserialize(all_data)
 
 
-def udp_sock_recvfrom(sock: socket.socket, buffer_size: int = 1024, timeout: float | None = 2.) -> tuple[Any, Any]:
+def udp_sock_recvfrom(sock: socket.socket, buffer_size: int = 16384, timeout: float | None = 2.) -> tuple[Any, Any]:
     chunks = []
     prev_timeout = sock.timeout
     address = None

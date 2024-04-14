@@ -20,7 +20,7 @@ class Client:
     def receive(self, buffer_size: int):
         pass
 
-    def transaction(self, data: Any, buffer_size: int = 1024):
+    def transaction(self, data: Any, buffer_size: int = 16384):
         self.send(data)
         return self.receive(buffer_size)
 
@@ -36,7 +36,6 @@ class Client:
         self._sock.close()
 
     def __del__(self):
-        logger.info('Closing socket...')
         self.close()
 
 
@@ -47,7 +46,6 @@ class TcpClient(Client):
         while True:
             try:
                 self._sock.connect(self.address)
-                logger.info('Successfully connected to server!')
                 break
             except socket.error:
                 logger.error(f'Error connecting to server, retrying in {retry} s...')
@@ -62,7 +60,7 @@ class TcpClient(Client):
             logger.exception(f'Error sending data: {e}')
             raise
 
-    def receive(self, buffer_size: int = 1024):
+    def receive(self, buffer_size: int = 16384):
         try:
             return tcp_sock_recv(self._sock, buffer_size)
         except socket.timeout:
@@ -85,7 +83,7 @@ class UdpClient(Client):
             logger.exception(f'Error sending data: {e}')
             raise
 
-    def receive(self, buffer_size: int = 1024):
+    def receive(self, buffer_size: int = 16384):
         try:
             return udp_sock_recvfrom(self._sock, buffer_size)[0]
         except socket.timeout:

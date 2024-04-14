@@ -9,6 +9,10 @@ if sys.version_info < (3, 12):
 from common import *
 from common.client import *
 
+# Application globals
+recipient: str | None = None
+group: str | None = None
+
 
 def construct_sys_prompt(s: str):
     return f'[{datetime_fmt()}] {s} > '
@@ -55,12 +59,18 @@ def create_group(chat_agent: ChatAgent, group_name: str):
 
 
 def leave_group(chat_agent: ChatAgent, group_name: str):
+    global group
+
     chat_agent.leave_group(group_name)
+    group = None
     return 0
 
 
 def leave_all(chat_agent: ChatAgent):
+    global group
+
     chat_agent.leave_all_groups()
+    group = None
     return 0
 
 
@@ -136,12 +146,12 @@ def on_receive(message: MessageProtocol):
 
         # Save file
         home_dir = os.path.expanduser("~").replace('\\', '/')
-        filename = uniquify(f'{home_dir}/Downloads/{_file_proto.filename}')
+        filename = uniquify(f'{home_dir}/Downloads/socket/{_file_proto.filename}')
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, mode='wb') as f:
             f.write(_file_proto.content)
 
-        logger.info(f'File {_file_proto.filename} is saved as {filename}.')
+        logger.info(f'File {_file_proto.filename} is saved as \"{filename}\".')
 
     else:
         # Other format
@@ -161,15 +171,13 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         sys.exit(0)
 
-    # or use with context "with" statement
+    time.sleep(0.5)
+
     with ChatAgent(client_name=client_name,
+                   open_sockets=128,
                    recv_callback=on_receive,
                    disc_callback=None) as agent:
-
-        recipient = None
-        group = None
-
-        time.sleep(0.5)
+        prev_command = ''
 
         while True:
             if group:
@@ -184,12 +192,17 @@ if __name__ == '__main__':
             except KeyboardInterrupt:
                 break
 
+            # Repeat
+            if command == '!!':
+                command = prev_command
+
+            # Empty
             tok = tokenize(command)
             if len(tok) < 1:
-                code = execute(tok, chat_agent=agent)
-                if code == -1:  # Quit the program
-                    break
                 continue
+
+            # Parse
+            prev_command = command
             tok_cmd, *tok_args = tok
 
             try:

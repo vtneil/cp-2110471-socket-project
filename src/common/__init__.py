@@ -5,6 +5,7 @@ from .utils.socket_utils import *
 from .logger import logger
 from .broadcast import *
 from .utils.general_utils import *
+from .utils.socket_pool import *
 
 __all__ = [
     'logger',
@@ -27,5 +28,6 @@ __all__ = [
     'UdpBroadcast',
     'datetime_fmt',
     'tokenize',
-    'uniquify'
+    'uniquify',
+    'SocketPool'
 ]
