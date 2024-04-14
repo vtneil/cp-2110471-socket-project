@@ -1,3 +1,4 @@
+import os.path
 import sys
 import time
 from typing import Callable, Any
@@ -91,6 +92,7 @@ def execute(tokens: list[str],
 
         # Chatroom actions
         'send': None,
+        'send-file': None
     }
 
     def __helper_print_help():
@@ -122,76 +124,123 @@ def execute(tokens: list[str],
 
 
 def on_receive(message: MessageProtocol):
-    if message.src:
+    if not isinstance(message, MessageProtocol) or not message.src:
+        return
+
+    if message.message_type == MessageProtocolCode.DATA.FILE:
+        # Receive file
+        _file_proto: FileProtocol = message.body
+        print(f'[{datetime_fmt()}] {message.src.username}: '
+              f'Sent a file: {_file_proto.filename} '
+              f'(size: {_file_proto.size} bytes)')
+
+        # Save file
+        home_dir = os.path.expanduser("~").replace('\\', '/')
+        filename = uniquify(f'{home_dir}/Downloads/{_file_proto.filename}')
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, mode='wb') as f:
+            f.write(_file_proto.content)
+
+        logger.info(f'File {_file_proto.filename} is saved as {filename}.')
+
+    else:
+        # Other format
         print(f'[{datetime_fmt()}] {message.src.username}: {message.body}')
 
 
+def on_discover(message: MessageProtocol):
+    if message.message_type == MessageProtocolCode.INSTRUCTION.BROADCAST.CLIENT_DISC:
+        print(f'Client Discovery [{datetime_fmt()}] {message.src.username} at {message.src.address}')
+    elif message.message_type == MessageProtocolCode.INSTRUCTION.BROADCAST.SERVER_DISC:
+        print(f'Server Discovery [{datetime_fmt()}] {message.src.username} at {message.src.address}')
+
+
 if __name__ == '__main__':
-    client_name = input('Client name > ').strip()
-    client_user = new_user(username=client_name, group=None, address=None, sock_slave=None)
+    try:
+        client_name = input('Client name > ').strip()
+    except KeyboardInterrupt:
+        sys.exit(0)
 
     # or use with context "with" statement
-    agent = ChatAgent(client_name=client_name,
-                      recv_callback=on_receive)
+    with ChatAgent(client_name=client_name,
+                   recv_callback=on_receive,
+                   disc_callback=None) as agent:
 
-    recipient = None
-    group = None
+        recipient = None
+        group = None
 
-    time.sleep(0.5)
+        time.sleep(0.5)
 
-    while True:
-        if group:
-            prompt_str = construct_sys_prompt(f'{client_name} [Group: {group}]')
-        elif recipient:
-            prompt_str = construct_sys_prompt(f'{client_name} [{recipient}]')
-        else:
-            prompt_str = construct_sys_prompt(f'{client_name}')
-
-        try:
-            command = input(prompt_str)
-        except KeyboardInterrupt:
-            break
-
-        tok = tokenize(command)
-        if len(tok) < 1:
-            code = execute(tok, chat_agent=agent)
-            if code == -1:  # Quit the program
-                break
-            continue
-        tok_cmd, *tok_args = tok
-
-        try:
-            if tok_cmd in ['chat', 'pm']:
-                recipient, group = tok_args[0], None
-
-            elif tok_cmd == 'group-join':
-                if agent.join_group(group_name=tok_args[0]) == MessageProtocolResponse.OK:
-                    recipient, group = None, tok_args[0]
-                    print(f'Joined group: {group}')
-                else:
-                    print(f'Error joining group: {group} (Doesn\'t exist)')
-
-            elif tok_cmd == 'send':
-                if group:
-                    agent.send_group(group_name=group,
-                                     data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
-                                     data=tok_args[0])
-                else:
-                    agent.send_private(recipient=recipient,
-                                       data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
-                                       data=tok_args[0])
-
+        while True:
+            if group:
+                prompt_str = construct_sys_prompt(f'{client_name} [Group: {group}]')
+            elif recipient:
+                prompt_str = construct_sys_prompt(f'{client_name} [{recipient}]')
             else:
-                code = execute(tok, chat_agent=agent)
+                prompt_str = construct_sys_prompt(f'{client_name}')
 
+            try:
+                command = input(prompt_str)
+            except KeyboardInterrupt:
+                break
+
+            tok = tokenize(command)
+            if len(tok) < 1:
+                code = execute(tok, chat_agent=agent)
                 if code == -1:  # Quit the program
                     break
+                continue
+            tok_cmd, *tok_args = tok
 
-                if tok_cmd in ['group-leave', 'group-leave-all']:
-                    group = None
-        except Exception as e:
-            logger.exception(f'Error: {e}')
+            try:
+                if tok_cmd in ['chat', 'pm']:
+                    recipient, group = tok_args[0], None
 
-    # Use with context "with" to automatically close
-    agent.stop()
-    logger.info('Bye!')
+                elif tok_cmd == 'group-join':
+                    if agent.join_group(group_name=tok_args[0]) == MessageProtocolResponse.OK:
+                        recipient, group = None, tok_args[0]
+                        print(f'Joined group: {group}')
+                    else:
+                        print(f'Error joining group: {group} (Doesn\'t exist)')
+
+                elif tok_cmd == 'send':
+                    if group:
+                        agent.send_group(group_name=group,
+                                         data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
+                                         data=tok_args[0])
+                    else:
+                        agent.send_private(recipient=recipient,
+                                           data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
+                                           data=tok_args[0])
+
+                elif tok_cmd == 'send-file':
+                    file_path: str = tok_args[0]
+                    if os.path.isfile(file_path):
+                        with open(file_path, mode='rb') as f:
+                            file_content: bytes = f.read()
+                            file_proto = new_file_proto(filename=os.path.basename(file_path),
+                                                        content=file_content)
+                            if group:
+                                agent.send_group(group_name=group,
+                                                 data_type=MessageProtocolCode.DATA.FILE,
+                                                 data=file_proto)
+                            else:
+                                agent.send_private(recipient=recipient,
+                                                   data_type=MessageProtocolCode.DATA.FILE,
+                                                   data=file_proto)
+                    else:
+                        logger.error(f'File {file_path} doesn\'t exist!')
+
+                else:
+                    code = execute(tok, chat_agent=agent)
+
+                    if code == -1:  # Quit the program
+                        break
+
+                    if tok_cmd in ['group-leave', 'group-leave-all']:
+                        group = None
+            except Exception as e:
+                logger.exception(f'Error: {e}')
+
+        # Use with context "with" to automatically close
+        logger.info('Bye!')

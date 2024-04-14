@@ -78,7 +78,7 @@ class UdpServer(Server):
         try:
             while True:
                 try:
-                    client_data, client_addr = udp_sock_recv(self._sock, 1024)
+                    client_data, client_addr = udp_sock_recvfrom(self._sock, 1024)
                     logger.info(f'Received data from {client_addr}')
 
                     if callback:

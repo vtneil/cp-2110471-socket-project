@@ -19,6 +19,10 @@ class MessageProtocolCode:
         IDENTIFY_SLAVE = 1001
         RESPONSE = 1002
 
+        class BROADCAST:
+            CLIENT_DISC = 1003
+            SERVER_DISC = 1004
+
         class CLIENT:
             LIST = 2000
 
@@ -68,16 +72,35 @@ class MessageProtocol:
         self._body = serialize(v)
 
 
-def new_message(src: User | None,
-                dst: User | None,
-                message_type: MessageProtocolCode,
-                body: Any,
-                response: MessageProtocolResponse | None = None):
-    m = MessageProtocol(
+@dataclasses.dataclass(init=True, repr=False, order=True, frozen=True)
+class FileProtocol:
+    filename: str
+    _size: int
+    content: bytes
+
+    @property
+    def size(self):
+        return len(self.content)
+
+
+def new_message_proto(src: User | None,
+                      dst: User | None,
+                      message_type: MessageProtocolCode,
+                      body: Any,
+                      response: MessageProtocolResponse | None = None):
+    return MessageProtocol(
         src=src,
         dst=dst,
         message_type=message_type,
         response=response,
         _body=serialize(body)
     )
-    return m
+
+
+def new_file_proto(filename: str,
+                   content: bytes):
+    return FileProtocol(
+        filename=filename,
+        content=content,
+        _size=len(content)
+    )

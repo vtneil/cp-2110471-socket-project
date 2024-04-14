@@ -87,7 +87,7 @@ class UdpClient(Client):
 
     def receive(self, buffer_size: int = 1024):
         try:
-            return udp_sock_recv(self._sock, buffer_size)[0]
+            return udp_sock_recvfrom(self._sock, buffer_size)[0]
         except socket.timeout:
             pass
         except socket.error as e:

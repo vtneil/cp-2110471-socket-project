@@ -44,11 +44,10 @@ def tcp_sock_recv(sock: socket.socket, buffer_size: int = 1024, timeout: float |
         sock.settimeout(prev_timeout)
 
     all_data = b''.join(chunks)
-
     return deserialize(all_data)
 
 
-def udp_sock_recv(sock: socket.socket, buffer_size: int = 1024, timeout: float | None = 2.) -> tuple[Any, Any]:
+def udp_sock_recvfrom(sock: socket.socket, buffer_size: int = 1024, timeout: float | None = 2.) -> tuple[Any, Any]:
     chunks = []
     prev_timeout = sock.timeout
     address = None

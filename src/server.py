@@ -9,7 +9,7 @@ from common.server import *
 if __name__ == '__main__':
     logger.info('Starting server...')
 
-    chat_server = ChatServer((HOST, PORT))
+    chat_server = ChatServer((HOST, PORT), 'VT Local')
 
     chat_server.wait()
 

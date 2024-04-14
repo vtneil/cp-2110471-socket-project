@@ -12,17 +12,20 @@ __all__ = [
     'tcp_sock_send',
     'tcp_sock_recv',
     'udp_sock_send',
-    'udp_sock_recv',
+    'udp_sock_recvfrom',
     'get_internet_ip',
     'serialize',
     'deserialize',
     'MessageProtocolCode',
     'MessageProtocol',
     'MessageProtocolResponse',
-    'new_message',
+    'new_message_proto',
+    'FileProtocol',
+    'new_file_proto',
     'User',
     'new_user',
     'UdpBroadcast',
     'datetime_fmt',
-    'tokenize'
+    'tokenize',
+    'uniquify'
 ]

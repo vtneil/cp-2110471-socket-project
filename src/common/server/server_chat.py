@@ -6,15 +6,25 @@ import socket
 
 
 class ChatServer:
-    def __init__(self, address: tuple[str, int]):
+    def __init__(self,
+                 address: tuple[str, int],
+                 server_name: str):
+        # List of chat clients, thread locks, and chat groups
         self.__clients: dict[str, User] = {}
         self.__locks: dict[str, threading.Lock] = {}
         self.__groups: dict[str, set[str]] = {}
 
+        # TCP Server
         self.__server = TcpServer(*address)
 
+        # Main server thread
         self.__server_thread = threading.Thread(target=self.__start, daemon=True)
         self.__server_thread.start()
+
+        # Local network broadcast
+        self.__broadcaster = UdpBroadcast(service_name=server_name,
+                                          broadcast_mode=MessageProtocolCode.INSTRUCTION.BROADCAST.SERVER_DISC,
+                                          disc_callback=None)
 
     def __start(self):
         with self.__server as server:
@@ -28,7 +38,7 @@ class ChatServer:
                 message: MessageProtocol | None = None
                 try:
                     message = tcp_sock_recv(sock, timeout=None)
-                    logger.info(f'Received from {addr}: {message}')
+                    logger.info(f'Received from {addr}.')
 
                 except socket.timeout:
                     logger.exception(f'Client timeout!')
@@ -101,7 +111,7 @@ class ChatServer:
                                                       address=addr,
                                                       sock_master=sock,
                                                       sock_slave=None)
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -111,7 +121,7 @@ class ChatServer:
                 logger.info('Client joined successfully!')
             else:
                 # Client already existed
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -131,7 +141,7 @@ class ChatServer:
 
             if message.src.username not in self.__clients:
                 # Client not found
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -144,7 +154,7 @@ class ChatServer:
                 clients[0] = message.src.username
                 self.__clients[clients[0]].sock_slave = sock
                 self.__locks[clients[0]] = threading.Lock()
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -163,7 +173,7 @@ class ChatServer:
                 return
 
             if message.message_type == MessageProtocolCode.INSTRUCTION.CLIENT.LIST:
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.DATA.PYTHON_OBJECT,
@@ -172,7 +182,7 @@ class ChatServer:
                 ))
 
             elif message.message_type == MessageProtocolCode.INSTRUCTION.GROUP.LIST_GROUPS:
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.DATA.PYTHON_OBJECT,
@@ -183,7 +193,7 @@ class ChatServer:
             elif message.message_type == MessageProtocolCode.INSTRUCTION.GROUP.LIST_CLIENTS:
                 body = message.body
                 if body and isinstance(body, str) and body in self.__groups:
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.DATA.PYTHON_OBJECT,
@@ -191,7 +201,7 @@ class ChatServer:
                         body=list(self.__groups[body])
                     ))
                 else:
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.DATA.PYTHON_OBJECT,
@@ -204,7 +214,7 @@ class ChatServer:
                 if body and isinstance(body, str):
                     # Create a group if not exist
                     if body in self.__groups:
-                        tcp_sock_send(sock, new_message(
+                        tcp_sock_send(sock, new_message_proto(
                             src=None,
                             dst=message.src,
                             message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -216,7 +226,7 @@ class ChatServer:
                         self.__groups[body] = set()
 
                         # Reply successful message
-                        tcp_sock_send(sock, new_message(
+                        tcp_sock_send(sock, new_message_proto(
                             src=None,
                             dst=message.src,
                             message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -225,7 +235,7 @@ class ChatServer:
                         ))
                 else:
                     # Reply error message
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -243,7 +253,7 @@ class ChatServer:
                     self.__clients[clients[0]].group = body
 
                     # Reply successful message
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -252,7 +262,7 @@ class ChatServer:
                     ))
                 else:
                     # Reply error message
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -278,7 +288,7 @@ class ChatServer:
                         self.__clients[clients[0]].group = None
 
                         # Reply successful message
-                        tcp_sock_send(sock, new_message(
+                        tcp_sock_send(sock, new_message_proto(
                             src=None,
                             dst=message.src,
                             message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -287,7 +297,7 @@ class ChatServer:
                         ))
                     else:
                         # Reply error message (not exist)
-                        tcp_sock_send(sock, new_message(
+                        tcp_sock_send(sock, new_message_proto(
                             src=None,
                             dst=message.src,
                             message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -296,7 +306,7 @@ class ChatServer:
                         ))
                 else:
                     # Reply error message
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -319,7 +329,7 @@ class ChatServer:
                 self.__clients[clients[0]].group = None
 
                 # Always reply successful message
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -364,7 +374,7 @@ class ChatServer:
                     tcp_sock_send(self.__clients[target_client].sock_slave, message)
 
                     # Always reply successful message when done
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -380,7 +390,7 @@ class ChatServer:
                     tcp_sock_send(self.__clients[message.dst.username].sock_slave, message)
 
                     # Always reply successful message when done
-                    tcp_sock_send(sock, new_message(
+                    tcp_sock_send(sock, new_message_proto(
                         src=None,
                         dst=message.src,
                         message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -389,7 +399,7 @@ class ChatServer:
                     ))
             else:
                 logger.info(f'Client loopback tried by: {message.src.username}')
-                tcp_sock_send(sock, new_message(
+                tcp_sock_send(sock, new_message_proto(
                     src=None,
                     dst=message.src,
                     message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
@@ -402,7 +412,7 @@ class ChatServer:
             logger.warning(f'Destination client not found!')
 
             # Reply error message
-            tcp_sock_send(sock, new_message(
+            tcp_sock_send(sock, new_message_proto(
                 src=None,
                 dst=message.src,
                 message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
