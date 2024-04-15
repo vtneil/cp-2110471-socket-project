@@ -18,7 +18,10 @@ class ChatServer:
         self.__server = TcpServer(*address)
 
         # Main server thread
-        self.__server_thread = threading.Thread(target=self.__start, daemon=True)
+        self.__server_thread = threading.Thread(
+            target=self.__start,
+            daemon=True
+        )
         self.__server_thread.start()
 
         # Local network broadcast
@@ -470,8 +473,11 @@ class ChatServer:
                 body=None
             ))
 
-    def wait(self):
-        self.__server_thread.join()
+    def is_alive(self) -> bool:
+        return self.__server_thread.is_alive()
+
+    def wait(self, timeout: float = 1.0):
+        self.__server_thread.join(timeout=timeout)
 
     @property
     def clients(self):

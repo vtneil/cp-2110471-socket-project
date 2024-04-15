@@ -5,7 +5,6 @@ import queue
 
 from .. import *
 from . import TcpClient
-from . import REMOTE_HOST, REMOTE_TCP_PORT
 
 
 def single(func):
@@ -20,6 +19,7 @@ def single(func):
 class ChatAgent:
     def __init__(self,
                  client_name: str,
+                 remote_address: tuple[str, int],
                  open_sockets: int = 64,
                  recv_callback: Callable[[MessageProtocol], None] | None = None,
                  disc_callback: Callable[[MessageProtocol], None] | None = None):
@@ -35,8 +35,8 @@ class ChatAgent:
         self.__user = new_user(username=client_name, group=None, address=None, sock_slaves=None)
 
         # Master client: for control transactions
-        self.__master_client = TcpClient(client_name, REMOTE_HOST, REMOTE_TCP_PORT)
-        self.__slave_clients = [TcpClient(client_name, REMOTE_HOST, REMOTE_TCP_PORT) for _ in range(open_sockets)]
+        self.__master_client = TcpClient(client_name, remote_address[0], remote_address[1])
+        self.__slave_clients = [TcpClient(client_name, remote_address[0], remote_address[1]) for _ in range(open_sockets)]
         self.__sock_lock = threading.Lock()
 
         # Identification with server
