@@ -6,6 +6,7 @@ from .logger import logger
 from .broadcast import *
 from .utils.general_utils import *
 from .utils.socket_pool import *
+from .utils.arg_parser import *
 
 __all__ = [
     'logger',
@@ -29,5 +30,8 @@ __all__ = [
     'datetime_fmt',
     'tokenize',
     'uniquify',
-    'SocketPool'
+    'SocketPool',
+    'ProgramArgumentParser',
+    'ProgramCommandArgument',
+    'ProgramCommand'
 ]

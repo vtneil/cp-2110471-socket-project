@@ -1,13 +1,11 @@
 import functools
-import socket
 import threading
-import time
 from typing import Any, Callable
 import queue
 
 from .. import *
-from . import TcpClient, UdpClient
-from . import REMOTE_HOST, REMOTE_TCP_PORT, REMOTE_UDP_PORT
+from . import TcpClient
+from . import REMOTE_HOST, REMOTE_TCP_PORT
 
 
 def single(func):
@@ -73,6 +71,10 @@ class ChatAgent:
         for thr in self.__slave_threads:
             thr.join()
         self.__broadcaster.stop()
+
+    @property
+    def username(self):
+        return self.__user.username
 
     @property
     def sock_lock(self):

@@ -1,10 +1,10 @@
 import sys
-from common.logger import logger
+from app.common.logger import logger
 
 if sys.version_info < (3, 12):
     raise Exception('Requires Python 3.12 or higher')
 
-from common.server import *
+from app.common.server import *
 
 if __name__ == '__main__':
     logger.info('Starting server...')
