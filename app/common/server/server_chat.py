@@ -244,6 +244,26 @@ class ChatServer:
                         body=[]
                     ))
 
+            elif message.message_type == MessageProtocolCode.INSTRUCTION.CLIENT.RENAME:
+                body = message.body
+                if body and isinstance(body, str):
+                    # Not Implemented
+                    tcp_sock_send(sock, new_message_proto(
+                        src=None,
+                        dst=message.src,
+                        message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                        response=MessageProtocolResponse.NOT_EXIST,
+                        body=None
+                    ))
+                else:
+                    tcp_sock_send(sock, new_message_proto(
+                        src=None,
+                        dst=message.src,
+                        message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                        response=MessageProtocolResponse.ERROR,
+                        body=None
+                    ))
+
             elif message.message_type == MessageProtocolCode.INSTRUCTION.GROUP.CREATE:
                 body = message.body
                 if body and isinstance(body, str):

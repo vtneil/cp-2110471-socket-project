@@ -26,6 +26,7 @@ class MessageProtocolCode:
 
         class CLIENT:
             LIST = 2000
+            RENAME = 2001
 
         class GROUP:
             LIST_GROUPS = 3000

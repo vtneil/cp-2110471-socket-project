@@ -2,13 +2,18 @@ import functools
 import os
 import socket
 import time
+import sys
+import datetime
 
 from app.common import *
 from app.common.client import *
-import sys
 
 
 def suppress(func):
+    """
+    Suppress static method warning
+    """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -22,9 +27,20 @@ class ProgramQuitException(Exception):
 
 class AppCLI:
     def __init__(self,
-                 agent: ChatAgent,
+                 client_name: str,
+                 remote_address: tuple[str, int],
+                 open_sockets: int = 64,
                  app_name: str = 'Chat App (CLI)'):
-        self.__agent = agent
+        # App Parameters
+        self.__agent_client_name = client_name
+        self.__agent_remote_address = remote_address
+        self.__agent_open_sockets = open_sockets
+
+        # Local devices
+        self.__local_clients: dict[str, tuple[float, tuple[str, int]]] = {}
+        self.__local_servers: dict[str, tuple[float, tuple[str, int]]] = {}
+
+        # Program argument parser (CLI)
         self.__src: tuple[str | None, str | None] = (None, None)
         self.__parser = ProgramArgumentParser(app_name=app_name)
         self.__prev_cmd = ''
@@ -38,7 +54,7 @@ class AppCLI:
                     name='option',
                     help_str='What to list?',
                     data_type=str,
-                    choices=['clients', 'groups', 'members'],
+                    choices=['clients', 'groups', 'members', 'local'],
                     optional=True
                 ), callback=self.__cmd_list,
                 aliases=['ls']
@@ -115,42 +131,76 @@ class AppCLI:
         )
 
     def run(self):
-        while True:
-            time.sleep(0.25)
-            if self.__src[0]:
-                prompt_str = self.__construct_sys_prompt(f'{self.__agent.username} [Group: {self.__src[0]}]')
-            elif self.__src[1]:
-                prompt_str = self.__construct_sys_prompt(f'{self.__agent.username} [To: {self.__src[1]}]')
-            else:
-                prompt_str = self.__construct_sys_prompt(f'{self.__agent.username}')
+        with ChatAgent(
+                client_name=self.__agent_client_name,
+                remote_address=self.__agent_remote_address,
+                open_sockets=self.__agent_open_sockets,
+                recv_callback=AppCLI.on_receive,
+                disc_callback=self.__on_discovery
+        ) as self.__agent:
+            while True:
+                time.sleep(0.25)
+                if self.__src[0]:
+                    prompt_str = self.__construct_sys_prompt(f'{self.__agent.username} [Group: {self.__src[0]}]')
+                elif self.__src[1]:
+                    prompt_str = self.__construct_sys_prompt(f'{self.__agent.username} [To: {self.__src[1]}]')
+                else:
+                    prompt_str = self.__construct_sys_prompt(f'{self.__agent.username}')
 
-            try:
-                cmd_input = input(prompt_str).split()
-            except KeyboardInterrupt:
-                break
+                try:
+                    cmd_input = input(prompt_str).split()
+                except KeyboardInterrupt:
+                    break
 
-            if cmd_input == '!!':
-                cmd_input = self.__prev_cmd
-            self.__prev_cmd = cmd_input
+                if cmd_input == '!!':
+                    cmd_input = self.__prev_cmd
+                self.__prev_cmd = cmd_input
 
-            try:
-                if not self.__parser.execute(cmd_input):
-                    print("No command provided. Type 'quit' to exit.")
-            except ProgramQuitException:
-                break
-            except SystemExit:
-                continue
+                try:
+                    if not self.__parser.execute(cmd_input):
+                        print("No command provided. Type 'quit' to exit.")
+                except ProgramQuitException:
+                    break
+                except SystemExit:
+                    continue
+
+    @suppress
+    def __on_discovery(self, message: MessageProtocol):
+        if not (message and isinstance(message, MessageProtocol)):
+            return
+
+        # Adding
+        if message.message_type == MessageProtocolCode.INSTRUCTION.BROADCAST.SERVER_DISC:
+            self.__local_servers[message.src.username] = time.time(), message.src.address
+        elif message.message_type == MessageProtocolCode.INSTRUCTION.BROADCAST.CLIENT_DISC:
+            self.__local_clients[message.src.username] = time.time(), message.src.address
+        else:
+            return
+
+        # Cleanup
+        tim_callback = time.time()
+        for server in list(self.__local_servers.keys()):
+            if tim_callback - self.__local_servers[server][0] >= 5.0:
+                self.__local_servers.pop(server)
+        for client in list(self.__local_clients.keys()):
+            if tim_callback - self.__local_clients[client][0] >= 5.0:
+                self.__local_clients.pop(client)
+
+        # print(f'Discovered a device: \"{message.src.username}\" at {message.src.address}')
+        # print(self.__local_servers)
+        # print(self.__local_clients)
 
     @suppress
     def __cmd_list(self, args):
         if not args.option or args.option == 'clients':
             res = self.__agent.get_connected_clients()[1]
             if res:
-                print('Connected clients')
+                print('Connected clients at your connected server')
                 for i, c in enumerate(res):
                     print(f'[{i:4d}] {c}')
             else:
                 print('No client is connected!')
+
         elif args.option == 'groups':
             res = self.__agent.get_groups()[1]
             if res:
@@ -158,7 +208,8 @@ class AppCLI:
                 for i, c in enumerate(res):
                     print(f'[{i:4d}] {c}')
             else:
-                print('No group in the server yet!')
+                print('No group in your connected server yet!')
+
         elif args.option == 'members':
             res = self.__agent.get_clients_in_group(self.__src[0])[1]
             if res:
@@ -167,6 +218,20 @@ class AppCLI:
                     print(f'[{i:4d}] {c}')
             else:
                 print('No client is in the group!')
+
+        elif args.option == 'local':
+            if self.__local_servers:
+                print(f'Local servers in your network')
+                for i, (name, addr) in enumerate(self.__local_servers.items()):
+                    print(f'[{i:4d}] {name} at {addr[1][0]}:{addr[1][1]}')
+            else:
+                print('(No local servers in your network)')
+            if self.__local_clients:
+                print(f'Local clients in your network')
+                for i, (name, addr) in enumerate(self.__local_clients.items()):
+                    print(f'[{i:4d}] {name} at {addr[1][0]}:{addr[1][1]}')
+            else:
+                print('(No local clients in your network)')
         return 0
 
     @suppress
