@@ -35,6 +35,7 @@ class ChatAgent:
         self.__user = new_user(username=client_name, group=None, address=None, sock_slaves=None)
 
         # Master client: for control transactions
+        logger.info('Setting up connections for you...')
         self.__master_client = TcpClient(client_name, remote_address[0], remote_address[1])
         self.__slave_clients = [TcpClient(client_name, remote_address[0], remote_address[1]) for _ in range(open_sockets)]
         self.__sock_lock = threading.Lock()
