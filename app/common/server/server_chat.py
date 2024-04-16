@@ -396,19 +396,33 @@ class ChatServer:
         if target_client == message.src.username:
             return
 
-        # Message to target
-        logger.info(f'Direct messaging '
-                    f'from {message.src.username} '
-                    f'to {message.dst.group}/{target_client}... '
-                    f'(Semaphore {self.__sock_pools[target_client].value})')
+        if message.message_type and message.message_flag == MessageProtocolFlag.ANNOUNCE:
+            logger.info(f'Announcing message '
+                        f'from {message.src.username} '
+                        f'server-wide '
+                        f'(Semaphore {self.__sock_pools[target_client].value})')
 
-        with self.__sock_pools[target_client].get_socket() as target_sock:
-            tcp_sock_send(target_sock, message)
+            with self.__sock_pools[target_client].get_socket() as target_sock:
+                tcp_sock_send(target_sock, message)
 
-        logger.info(f'Finished request '
-                    f'from {message.src.username} '
-                    f'to {message.dst.group}/{target_client}... '
-                    f'(Semaphore {self.__sock_pools[target_client].value})')
+            logger.info(f'Finished announcing message '
+                        f'from {message.src.username} '
+                        f'server-wide '
+                        f'(Semaphore {self.__sock_pools[target_client].value})')
+        else:
+            # Message to target
+            logger.info(f'Direct messaging '
+                        f'from {message.src.username} '
+                        f'to {message.dst.group}/{target_client}... '
+                        f'(Semaphore {self.__sock_pools[target_client].value})')
+
+            with self.__sock_pools[target_client].get_socket() as target_sock:
+                tcp_sock_send(target_sock, message)
+
+            logger.info(f'Finished request '
+                        f'from {message.src.username} '
+                        f'to {message.dst.group}/{target_client}... '
+                        f'(Semaphore {self.__sock_pools[target_client].value})')
 
     def __process_data(self,
                        clients: list[str | None],
@@ -429,7 +443,28 @@ class ChatServer:
         user_is_in_group: bool = (message.src.group in self.__groups and
                                   message.src.username in self.__groups[message.src.group])
 
-        if destination_is_group:
+        if message.message_flag and message.message_flag == MessageProtocolFlag.ANNOUNCE:
+            logger.info(f'Starting server-side broadcast announcement...')
+
+            threads = [threading.Thread(
+                target=self.__send_each,
+                args=(target_client, message),
+                daemon=True
+            ) for target_client in self.__clients]
+
+            for thr in threads:
+                thr.start()
+
+            # Always reply successful message when all done
+            tcp_sock_send(sock, new_message_proto(
+                src=None,
+                dst=message.src,
+                message_type=MessageProtocolCode.INSTRUCTION.RESPONSE,
+                response=MessageProtocolResponse.OK,
+                body=None
+            ))
+
+        elif destination_is_group:
             # WANT TO SEND IN A GROUP CHAT
             if not user_is_in_group:
                 logger.warning(f'User {message.src.username} is not in the group!')

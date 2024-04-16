@@ -124,6 +124,17 @@ class AppCLI:
                 aliases=['send-file', 'f']
             ),
             ProgramCommand(
+                'announce', 'Announce/broadcast message server-wide',
+                ProgramCommandArgument(
+                    name='message',
+                    help_str='Message to send',
+                    data_type=str,
+                    long_string=True
+                ),
+                callback=self.__cmd_announce,
+                aliases=['all', 'broadcast', 'shout', 'sos']
+            ),
+            ProgramCommand(
                 'quit', 'Exit the application',
                 callback=self.__cmd_quit,
                 aliases=['exit', 'q']
@@ -306,6 +317,12 @@ class AppCLI:
             return 1
 
     @suppress
+    def __cmd_announce(self, args):
+        message = ' '.join(args.message)
+        self.__agent.announce(data=message)
+        return 0
+
+    @suppress
     def __cmd_quit(self, _):
         raise ProgramQuitException
 
@@ -336,4 +353,7 @@ class AppCLI:
 
         else:
             # Other format
-            print(f'[{datetime_fmt()}] {message.src.username}: {message.body}')
+            if message.message_flag and message.message_flag == MessageProtocolFlag.ANNOUNCE:
+                print(f'[{datetime_fmt()}] Announcement from {message.src.username}: {message.body}')
+            else:
+                print(f'[{datetime_fmt()}] {message.src.username}: {message.body}')

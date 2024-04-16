@@ -37,7 +37,8 @@ class ChatAgent:
         # Master client: for control transactions
         logger.info('Setting up connections for you...')
         self.__master_client = TcpClient(client_name, remote_address[0], remote_address[1])
-        self.__slave_clients = [TcpClient(client_name, remote_address[0], remote_address[1]) for _ in range(open_sockets)]
+        self.__slave_clients = [TcpClient(client_name, remote_address[0], remote_address[1]) for _ in
+                                range(open_sockets)]
         self.__sock_lock = threading.Lock()
 
         # Identification with server
@@ -232,6 +233,19 @@ class ChatAgent:
             src=self.__user,
             dst=new_user(username=None, group=group_name),
             message_type=data_type,
+            body=data
+        ))
+
+        return response.response
+
+    @single
+    def announce(self,
+                 data: str) -> MessageProtocolResponse:
+        response: MessageProtocol = self.__master_client.transaction(new_message_proto(
+            src=self.__user,
+            dst=None,
+            message_type=MessageProtocolCode.DATA.PLAIN_TEXT,
+            flag=MessageProtocolFlag.ANNOUNCE,
             body=data
         ))
 

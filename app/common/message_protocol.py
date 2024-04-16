@@ -21,8 +21,8 @@ class MessageProtocolCode:
         RESPONSE = 1003
 
         class BROADCAST:
-            CLIENT_DISC = 1003
-            SERVER_DISC = 1004
+            CLIENT_DISC = 1004
+            SERVER_DISC = 1005
 
         class CLIENT:
             LIST = 2000
@@ -57,11 +57,16 @@ class MessageProtocolCode:
         return not MessageProtocolCode.is_instruction(code)
 
 
+class MessageProtocolFlag:
+    ANNOUNCE = 10001
+
+
 @dataclasses.dataclass(init=True, repr=True, order=True)
 class MessageProtocol:
     src: User | None
     dst: User | None
     message_type: MessageProtocolCode
+    message_flag: MessageProtocolFlag | None
     response: MessageProtocolResponse | None
     _body: bytes
 
@@ -89,11 +94,13 @@ def new_message_proto(src: User | None,
                       dst: User | None,
                       message_type: MessageProtocolCode,
                       body: Any,
-                      response: MessageProtocolResponse | None = None):
+                      response: MessageProtocolResponse | None = None,
+                      flag: MessageProtocolFlag | None = None):
     return MessageProtocol(
         src=src,
         dst=dst,
         message_type=message_type,
+        message_flag=flag,
         response=response,
         _body=serialize(body)
     )

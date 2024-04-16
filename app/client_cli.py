@@ -18,9 +18,9 @@ if __name__ == "__main__":
         try:
             num_connections = int(sys.argv[2])
         except ValueError:
-            num_connections = 16
+            num_connections = 4
     else:
-        num_connections = 16
+        num_connections = 4
 
     print(f'Connection will be made to {remote_host_port[0]}:{remote_host_port[1]} using {num_connections} sockets')
 

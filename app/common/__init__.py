@@ -21,6 +21,7 @@ __all__ = [
     'MessageProtocolCode',
     'MessageProtocol',
     'MessageProtocolResponse',
+    'MessageProtocolFlag',
     'new_message_proto',
     'FileProtocol',
     'new_file_proto',
