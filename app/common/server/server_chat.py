@@ -29,6 +29,8 @@ class ChatServer:
                                           broadcast_mode=MessageProtocolCode.INSTRUCTION.BROADCAST.SERVER_DISC,
                                           disc_callback=None)
 
+        logger.info(f'Broadcasting identifier is {server_name}')
+
     def __start(self):
         with self.__server as server:
             server.start(self.__handle_message)

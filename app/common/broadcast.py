@@ -14,7 +14,7 @@ class UdpBroadcast:
                  broadcast_mode: MessageProtocolCode,
                  disc_callback: Callable[[MessageProtocol], None] | None = None,
                  broadcast_address: str = '255.255.255.255',
-                 listen_port: int = 50001,
+                 listen_port: int = 60000,
                  broadcast_period: float = 1.0):
 
         self.__message = new_message_proto(

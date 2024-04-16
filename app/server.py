@@ -15,9 +15,14 @@ def main():
     else:
         host_port: tuple[str, int] = (HOST, PORT)
 
+    if len(sys.argv) > 2 and sys.argv[2]:
+        server_name = sys.argv[2]
+    else:
+        server_name = 'Example chat server'
+
     logger.info('Starting server...')
 
-    chat_server = ChatServer(host_port, 'VT Local')
+    chat_server = ChatServer(address=host_port, server_name=server_name)
 
     try:
         while chat_server.is_alive():

@@ -3,10 +3,22 @@ services:
     container_name: chat-server
     build:
       context: .
+      args:
+        - SERVER_NAME="EasyTask-Instance-1"
       dockerfile: ./server.Dockerfile
     ports:
       - "50000:50000"
-      - "50002:50001"
+    restart: always
+
+  chat-server-2:
+    container_name: chat-server-2
+    build:
+      context: .
+      args:
+        - SERVER_NAME="EasyTask-Instance-2"
+      dockerfile: ./server.Dockerfile
+    ports:
+      - "50001:50000"
     restart: always
 
   chat-client:
@@ -15,5 +27,4 @@ services:
       context: .
       dockerfile: ./client.Dockerfile
     ports:
-      - "50001:50001"
-    restart: always
+      - "60000:60000"
