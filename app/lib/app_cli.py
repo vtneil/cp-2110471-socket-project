@@ -159,11 +159,14 @@ class AppCLI:
                     prompt_str = self.__construct_sys_prompt(f'{self.__agent.username}')
 
                 try:
-                    cmd_input = input(prompt_str).split()
+                    cmd_input = input(prompt_str).strip().split()
                 except KeyboardInterrupt:
                     break
 
-                if cmd_input == '!!':
+                if cmd_input == ['help']:
+                    cmd_input = ['-h']
+
+                if cmd_input == ['!!']:
                     cmd_input = self.__prev_cmd
                 self.__prev_cmd = cmd_input
 
