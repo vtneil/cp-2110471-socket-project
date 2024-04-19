@@ -58,6 +58,9 @@ class ChatAgent:
                                           broadcast_mode=MessageProtocolCode.INSTRUCTION.BROADCAST.CLIENT_DISC,
                                           disc_callback=disc_callback)
 
+        # Stop flag
+        self.__is_stop = False
+
         logger.info('Chat agent is successfully initialized!')
 
     def __enter__(self):
@@ -66,13 +69,18 @@ class ChatAgent:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
+    def __del__(self):
+        self.stop()
+
     def stop(self):
-        logger.info('Stopping slave thread...')
-        self.__slave_flag.set()
-        self.__slave_orchestrator.join()
-        for thr in self.__slave_threads:
-            thr.join()
-        self.__broadcaster.stop()
+        if not self.__is_stop:
+            self.__is_stop = True
+            logger.info('Stopping slave thread...')
+            self.__slave_flag.set()
+            self.__slave_orchestrator.join()
+            for thr in self.__slave_threads:
+                thr.join()
+            self.__broadcaster.stop()
 
     @property
     def username(self):
