@@ -73,14 +73,17 @@ class ChatAgent:
         self.stop()
 
     def stop(self):
-        if not self.__is_stop:
-            self.__is_stop = True
-            logger.info('Stopping slave thread...')
-            self.__slave_flag.set()
-            self.__slave_orchestrator.join()
-            for thr in self.__slave_threads:
-                thr.join()
-            self.__broadcaster.stop()
+        try:
+            if not self.__is_stop:
+                self.__is_stop = True
+                logger.info('Stopping slave thread...')
+                self.__slave_flag.set()
+                self.__slave_orchestrator.join()
+                for thr in self.__slave_threads:
+                    thr.join()
+                self.__broadcaster.stop()
+        except Exception:
+            pass
 
     @property
     def username(self):
