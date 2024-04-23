@@ -2,3 +2,4 @@
 .venv
 Documents
 tests
+*__pycache__*
