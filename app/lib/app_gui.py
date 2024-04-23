@@ -193,7 +193,7 @@ class Announcement(Static):
         self.label = label
         
     def compose(self):
-        yield Label('announcement text', id='announcementBox')
+        yield Label(self.label, id='announcementBox')
 
 
 class Broadcast(Static):
@@ -473,18 +473,13 @@ class AppGUI(App):
                 chat_container.mount(new_message)
         chat_container.scroll_end()
     
-    def refresh_annoucement(self):
-        chat_container = self.query_one("#chat")
-        chat_container.remove_children('*')
-        if self.src[1] in self.buffer.private:
-            for message_info in self.buffer.private[self.src[1]]:
-                new_message = MessageBox(sender=message_info.sender, message=message_info.body)
-                chat_container.mount(new_message)
-        elif self.src[0] in self.buffer.group:
-            for message_info in self.buffer.group[self.src[0]]:
-                new_message = MessageBox(sender=message_info.sender, message=message_info.body)
-                chat_container.mount(new_message)
-        chat_container.scroll_end()
+    # def refresh_annoucement(self):
+    #     ann_container = self.query_one("#announcementList")
+    #     ann_container.remove_children('*')
+    #     for message_info in self.buffer.private[self.src[1]]:
+    #         new_message = MessageBox(sender=message_info.sender, message=message_info.body)
+    #         ann_container.mount(new_message)
+    #     ann_container.scroll_end()
 
     @on(Button.Pressed, '#switch')
     def switch(self):
@@ -609,7 +604,6 @@ class AppGUI(App):
         current_chat = self.query_one(Middle).current_chat
         chat_type = self.query_one(Middle).current_chat_type
         if chat_type == 'g':
-            if (self.src[0]): self.agent.leave_group(self.src[0])
             self.src = (current_chat,None)
         else:
             self.chat(recipient=current_chat)
