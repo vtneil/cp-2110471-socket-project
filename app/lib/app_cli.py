@@ -180,7 +180,7 @@ class AppCLI:
 
     @suppress
     def __on_discovery(self, message: MessageProtocol):
-        if not (message and isinstance(message, MessageProtocol)):
+        if not validate_message(message):
             return
 
         # Adding
@@ -203,6 +203,34 @@ class AppCLI:
         # print(f'Discovered a device: \"{message.src.username}\" at {message.src.address}')
         # print(self.__local_servers)
         # print(self.__local_clients)
+
+    @staticmethod
+    def on_receive(message: MessageProtocol):
+        if not validate_message(message):
+            return
+
+        if message.message_type == MessageProtocolCode.DATA.FILE:
+            # Receive file
+            _file_proto: FileProtocol = message.body
+            print(f'[{datetime_fmt()}] {message.src.username}: '
+                  f'Sent a file: {_file_proto.filename} '
+                  f'(size: {_file_proto.size} bytes)')
+
+            # Save file
+            home_dir = os.path.expanduser("~").replace('\\', '/')
+            filename = uniquify(f'{home_dir}/Downloads/socket/{_file_proto.filename}')
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            with open(filename, mode='wb') as f:
+                f.write(_file_proto.content)
+
+            logger.info(f'File {_file_proto.filename} is saved as \"{filename}\".')
+
+        else:
+            # Other formats
+            if message.message_flag and message.message_flag == MessageProtocolFlag.ANNOUNCE:
+                print(f'[{datetime_fmt()}] Announcement from {message.src.username}: {message.body}')
+            else:
+                print(f'[{datetime_fmt()}] {message.src.username}: {message.body}')
 
     @suppress
     def __cmd_list(self, args):
@@ -332,31 +360,3 @@ class AppCLI:
     @staticmethod
     def __construct_sys_prompt(s: str):
         return f'[{datetime_fmt()}] {s} > '
-
-    @staticmethod
-    def on_receive(message: MessageProtocol):
-        if not isinstance(message, MessageProtocol) or not message.src:
-            return
-
-        if message.message_type == MessageProtocolCode.DATA.FILE:
-            # Receive file
-            _file_proto: FileProtocol = message.body
-            print(f'[{datetime_fmt()}] {message.src.username}: '
-                  f'Sent a file: {_file_proto.filename} '
-                  f'(size: {_file_proto.size} bytes)')
-
-            # Save file
-            home_dir = os.path.expanduser("~").replace('\\', '/')
-            filename = uniquify(f'{home_dir}/Downloads/socket/{_file_proto.filename}')
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
-            with open(filename, mode='wb') as f:
-                f.write(_file_proto.content)
-
-            logger.info(f'File {_file_proto.filename} is saved as \"{filename}\".')
-
-        else:
-            # Other format
-            if message.message_flag and message.message_flag == MessageProtocolFlag.ANNOUNCE:
-                print(f'[{datetime_fmt()}] Announcement from {message.src.username}: {message.body}')
-            else:
-                print(f'[{datetime_fmt()}] {message.src.username}: {message.body}')

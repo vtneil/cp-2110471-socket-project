@@ -103,6 +103,7 @@ class ChatServer:
                               sock: socket.socket,
                               message: MessageProtocol):
         logger.info(f'Processing instruction from {addr} using {sock}')
+        logger.info(f'Message: {message}'[:256])
 
         if message.message_type == MessageProtocolCode.INSTRUCTION.IDENTIFY_MASTER:
             # Initial identification
@@ -430,6 +431,7 @@ class ChatServer:
                        sock: socket.socket,
                        message: MessageProtocol):
         logger.info(f'Processing data from {addr}')
+        logger.info(f'Message: {message}'[:256])
 
         source_exists: bool = message.src and message.src.username and message.src.username in self.__clients
 

@@ -23,6 +23,7 @@ __all__ = [
     'MessageProtocolResponse',
     'MessageProtocolFlag',
     'new_message_proto',
+    'validate_message',
     'FileProtocol',
     'new_file_proto',
     'User',
