@@ -8,7 +8,7 @@ Left {
     height: 100%;
     layout: grid;
     grid-size: 1 3;
-    grid-rows: 2fr 5fr 3fr;
+    grid-rows: 1fr 5fr 2fr;
 }
 
 Top {
@@ -34,8 +34,9 @@ Middle {
 }
 ChatBox{
     background: cyan;
-    layout: horizontal;
-    background: cyan 20%;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    background: cyan 50%;
     color: white;
     border: solid cyan;
 }
@@ -49,8 +50,9 @@ Box{
 #pinChat{
     margin-right: 1;
 }
-.chatBoxName{
+#chatBoxName{
     align: left middle;
+    background: green;
 }
 
 Bottom {
@@ -75,19 +77,21 @@ Right {
 
 
 ChatName {
-    layout: horizontal;
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 5fr 1fr;
     background: blue 20%;
     color: white;
     border: solid blue;
     align: center middle;
 }
 #chatName {
-    align: center middle;
+    text-style: bold;
     background: blue;
 }
 #switch{
     align: right middle;
-    background: red;
+    tint: black 40%;
 }
 
 InputText {
