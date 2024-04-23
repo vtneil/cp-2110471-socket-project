@@ -76,6 +76,8 @@ class JoinGroup(Static):
 
 
 class Middle(Static):
+    pressed_chatName = reactive('default is here',always_update=True)
+
     BINDINGS = [
         ('r', 'add_chatbox', "Refresh list on group/clients")
     ]
@@ -84,56 +86,119 @@ class Middle(Static):
         super().__init__()
         self.agent = agent
         self.all_cli = self.agent.get_groups()[1]
+        self.pinned_chat = []
+        self.current_chat = None
+        self.current_chat_type = None
 
     def compose(self):
         with ScrollableContainer(id='chatList'):
-            yield ChatBox(gname="default")
+            yield ChatBox(gname="default",chat_type='c',agent=self.agent)
 
     def action_add_chatbox(self):
         chatboxes = self.query(ChatBox)
-        if chatboxes:
+        if chatboxes :
             chatboxes.remove()
         container = self.query_one("#chatList")
-        for i, c in enumerate(self.agent.get_groups()[1]):
-            chatbox = ChatBox(gname=c)
-            container.mount(chatbox)
+        chatboxes = []
+        pinned_chatboxes = []
+        for i,c in enumerate(self.agent.get_groups()[1]):
+            gname = "(GROUP) "+c
+            chatbox = ChatBox(gname=gname , chat_type='g' , agent=self.agent)
+            if gname in self.pinned_chat:
+                chatbox.gname = '(Pin'+chatbox.gname[1:]
+                pinned_chatboxes.append(chatbox)
+            else:
+                chatboxes.append(chatbox)
+            # container.mount(chatbox)
+        for i,c in enumerate(self.agent.get_connected_clients()[1]):
+            gname = "(CLIENT) "+c
+            chatbox = ChatBox(gname=gname , chat_type='c' , agent=self.agent)
+            if gname in self.pinned_chat:
+                chatbox.gname = '(Pin'+chatbox.gname[1:]
+                pinned_chatboxes.append(chatbox)
+            else:
+                chatboxes.append(chatbox)
+            # container.mount(chatbox) 
+        for i in pinned_chatboxes:
+            container.mount(i)
+        for i in chatboxes:
+            container.mount(i)
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Event handler called when a button is pressed."""
+        button_id = event.button.id
+        button_name = event.button.name
+        if button_id == "startChat":
+            # button.startChat()
+            if button_name.split()[2] == 'g':
+                if self.agent.join_group(group_name = button_name.split()[1].strip(' ')) == MessageProtocolResponse.OK:
+                    self.pressed_chatName = button_name.split()[1]
+                    self.current_chat = button_name.split()[1].strip(' ')
+                    self.current_chat_type = 'g'
+                    print('In to chat group',self.pressed_chatName)
+            else:
+                self.pressed_chatName = button_name.split()[1]
+                self.current_chat = button_name.split()[1].strip(' ')
+                self.current_chat_type = 'c'
+        else:
+            button_name = event.button.name
+            self.pinned_chat.append(button_name)
+            self.action_add_chatbox()
 
 
 class ChatBox(Static):
-    def __init__(self, gname):
+
+    pressed_chatName = reactive('default chat name')
+
+    def __init__(self , gname = 'Default group name' ,chat_type = '',agent = None):
         super().__init__()
         self.gname = gname
+        self.chat_type = chat_type
+        self.agent = agent
 
     def compose(self):
         yield Label(self.gname, id='chatBoxName')
-        yield Box()
+        yield Box(self.gname , self.chat_type)
+    
+    def get_chatName(self):
+        return self.gname
 
 
 class Box(Static):
+    def __init__(self,gname,chat_type):
+        super().__init__()
+        self.gname = gname
+        self.chat_type = chat_type
+
     def compose(self):
-        yield Button('chat', id='startChat')
-        yield Button('pin', id='pinChat')
+        yield Button(label='chat',name=self.gname+' '+self.chat_type, id='startChat')
+        yield Button(label='pin',name=self.gname, id='pinChat')
+
 
 
 class Bottom(Static):
     def compose(self):
         with ScrollableContainer(id='announcementList'):
             yield Announcement()
-            yield Announcement()
-            yield Announcement()
-            yield Announcement()
-            yield Announcement()
-            yield Announcement()
-            yield Announcement()
         yield Broadcast()
-
+    
+    @on(Button.Pressed , '#broadCastButton')
+    def setAccounce(self):
+        container = self.query_one('#announcementList')
+        container.mount(Announcement(label=self.query_one(Broadcast).broadcastMessage))
 
 class Announcement(Static):
+    def __init__(self,label ='announcement text' ):
+        super().__init__()
+        self.label = label
+        
     def compose(self):
         yield Label('announcement text', id='announcementBox')
 
 
 class Broadcast(Static):
+    def __init__(self):
+        super().__init__();
+        self.broadcastMessage = ''
     def compose(self):
         yield Input(id='broadCastInput', classes='topInput')
         yield Button('broadcast', id='broadcastButton', classes='topButton')
@@ -142,26 +207,34 @@ class Broadcast(Static):
 # !======================================================================================
 
 # ! ============================= Right side =============================================
-chat_name = 'Talk Arai U Dai'
+# chat_name = 'Talk Arai U Dai'
 
 
 class Right(Static):
     def __init__(self,
                  m_buffer: MessageInfoDict,
                  g_buffer: MessageInfoDict,
-                 src: tuple[str | None, str | None]):
+                 src: tuple[str | None, str | None],
+                 chatname):
         super().__init__()
         self.m_buffer = m_buffer
         self.g_buffer = g_buffer
         self.src = src
+        self.chatname = chatname
 
     def compose(self) -> ComposeResult:
         # yield Label('wee')
-        yield ChatName()
+        yield ChatName(chatname=self.chatname)
 
         with ScrollableContainer(id='chat'):
             if self.src[1] in self.m_buffer:
                 for message_info in self.m_buffer[self.src[1]]:
+                    yield MessageBox(
+                        sender=message_info.sender,
+                        message=message_info.body
+                    )
+            elif self.src[0] in self.g_buffer:
+                for message_info in self.g_buffer[self.src[0]]:
                     yield MessageBox(
                         sender=message_info.sender,
                         message=message_info.body
@@ -173,8 +246,11 @@ class Right(Static):
 
 # TODO give Title of chatroom
 class ChatName(Static):
+    def __init__(self,chatname):
+        super().__init__()
+        self.chat_name = chatname
     def compose(self):
-        yield Label(chat_name, id='chatName')
+        yield Label(self.chat_name, id='chatName')
         yield Button('switch', id='switch')
         # * switch mode (dark-light)
 
@@ -232,6 +308,7 @@ class AppGUI(App):
 
         self.message_to_send = ''
         self.groupName = ''
+        self.chatname=''
 
         self.recv_count = 0
 
@@ -366,6 +443,7 @@ class AppGUI(App):
                 self.local_clients.pop(client)
 
     def chat(self, recipient):
+        if (self.src[0]): self.agent.leave_group(self.src[0])
         self.src = (None, recipient)
         return 0
 
@@ -375,13 +453,18 @@ class AppGUI(App):
         yield Left(self.agent)
         yield Right(m_buffer=self.buffer.private,
                     g_buffer=self.buffer.group,
-                    src=self.src)
+                    src=self.src,
+                    chatname=self.chatname)
 
     def refresh_chat_messages(self):
         chat_container = self.query_one("#chat")
         chat_container.remove_children('*')
         if self.src[1] in self.buffer.private:
             for message_info in self.buffer.private[self.src[1]]:
+                new_message = MessageBox(sender=message_info.sender, message=message_info.body)
+                chat_container.mount(new_message)
+        elif self.src[0] in self.buffer.group:
+            for message_info in self.buffer.group[self.src[0]]:
                 new_message = MessageBox(sender=message_info.sender, message=message_info.body)
                 chat_container.mount(new_message)
         chat_container.scroll_end()
@@ -391,10 +474,12 @@ class AppGUI(App):
         # self.agent.send_private('vt', 'safgsfgdjshf')
         self.dark = not self.dark
 
-        if self.client_name == 'a':
-            self.chat('b')
-        if self.client_name == 'b':
-            self.chat('a')
+        #///////////for test purpose only //////////////
+        # if self.client_name == 'a':
+        #     self.chat('b')
+        # if self.client_name == 'b':
+        #     self.chat('a')
+        #///////////for test purpose only //////////////
 
         chat_container = self.query_one("#chat")
         if self.src[1]:
@@ -408,7 +493,9 @@ class AppGUI(App):
 
     @on(Button.Pressed, '#sendButton')
     def action_add_message(self) -> None:
-        # self.message_to_send = str(self.recv_count)
+        # self.message_to_send = str(self.src[0])
+        # if self.src[0] in self.buffer.group.keys():
+        #     self.message_to_send = self.buffer.group[self.src[0]]
         if self.src[0]:
             self.agent.send_group(group_name=self.src[0],
                                   data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
@@ -470,9 +557,6 @@ class AppGUI(App):
         else:
             logger.error(f'File {self.message_to_send} doesn\'t exist!')
             return 1
-        
-
-
 
     # create Group
     @on(Input.Changed, '#createGroupInput')
@@ -481,8 +565,36 @@ class AppGUI(App):
 
     @on(Button.Pressed, '#createGroupButton')
     def createGroup(self):
+        if (self.src[0]): self.agent.leave_group(self.src[0])
         if self.agent.create_group(group_name=self.query_one(CreateGroup).groupname) == MessageProtocolResponse.OK:
             print("GroupName", self.query_one(CreateGroup).groupname)
+            self.query_one(CreateGroup).groupname = ''
+
+    #Annouce broadcast
+    @on(Input.Changed , '#broadCastInput')
+    def annouceHandler(self,event:Input.Changed) -> None:
+        self.query_one(Broadcast).broadcastMessage = event.value
+    @on(Button.Pressed , '#broadCastButton')
+    def sendAnnouce(self):
+        self.agent.announce(data=self.query_one(Broadcast).broadcastMessage)
+        self.query_one(Broadcast).broadcastMessage = ''
+
+
+    def on_mount(self) -> None:
+        def update_chatname(new_chatname:str) ->None:
+            self.query_one(ChatName).chat_name = new_chatname
+        self.watch(self.query_one(Middle) , 'pressed_chatName' , update_chatname)
+
+    @on(Button.Pressed, '#startChat')
+    def startChat(self):
+        current_chat = self.query_one(Middle).current_chat
+        chat_type = self.query_one(Middle).current_chat_type
+        if chat_type == 'g':
+            if (self.src[0]): self.agent.leave_group(self.src[0])
+            self.src = (current_chat,None)
+        else:
+            self.chat(recipient=current_chat)
+
 
     # ===== Context manager ===== #
 
