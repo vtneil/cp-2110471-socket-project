@@ -1,9 +1,10 @@
 import dataclasses
 import os
+import threading
 import time
 from collections import defaultdict
 
-from textual import on, events
+from textual import on, events, log
 from textual.app import App, ComposeResult
 from textual.reactive import reactive
 from textual.containers import ScrollableContainer, Horizontal
@@ -242,7 +243,7 @@ class AppGUI(App):
         self.buffer: MessageInfoBuffer = MessageInfoBuffer()
 
         # Success message
-        logger.info('GUI app is successfully initialized.')
+        #
 
     def store_chat(self, chatroom: str, *message_infos: MessageInfo):
         if self.src[0]:
@@ -258,6 +259,18 @@ class AppGUI(App):
 
         if not validate_message(message):
             return
+
+        self.agent.send_private(
+            recipient='vt1',
+            data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
+            data=f'{message}'
+        )
+
+        self.agent.send_private(
+            recipient='vt',
+            data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
+            data=f'{message}'
+        )
 
         if message.message_type == MessageProtocolCode.DATA.FILE:
             # Receive file
@@ -327,6 +340,8 @@ class AppGUI(App):
     def on_discovery(self, message: MessageProtocol):
         if not validate_message(message):
             return
+
+        logger.info(f'I discovered something!: {message}')
 
         # Adding
         if message.message_type == MessageProtocolCode.INSTRUCTION.BROADCAST.SERVER_DISC:

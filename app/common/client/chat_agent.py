@@ -289,7 +289,10 @@ class ChatAgent:
             while not self.__slave_flag.is_set():
                 while not self.__receive_buffer.empty():
                     data = self.__receive_buffer.get()
-                    callback(data)
+                    try:
+                        callback(data)
+                    except Exception:
+                        pass
 
         threads = [threading.Thread(
             target=message_receive,

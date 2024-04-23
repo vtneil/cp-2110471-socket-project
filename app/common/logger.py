@@ -1,4 +1,5 @@
 import logging
+from textual.logging import TextualHandler
 
 logFormatter = logging.Formatter(fmt='[%(name)s] %(levelname)-8s: %(message)s')
 
@@ -9,4 +10,7 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setLevel(logging.DEBUG)
 consoleHandler.setFormatter(logFormatter)
 
+textualHandler = TextualHandler()
+
 logger.addHandler(consoleHandler)
+logger.addHandler(textualHandler)
