@@ -95,7 +95,7 @@ class ChatServer:
 
                 # Clear empty groups inefficiently
                 # Don't clear other empty groups (may just been created)
-                self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v and k in just_left}
+                # self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v and k in just_left}
 
     def __process_instruction(self,
                               clients: list[str | None],
@@ -376,7 +376,7 @@ class ChatServer:
                     self.__groups[group].discard(message.src.username)
 
                 # Clear empty groups
-                self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v and k in just_left}
+                # self.__groups: dict[str, set[str]] = {k: v for k, v in self.__groups.items() if v and k in just_left}
 
                 # Unassign group from user
                 self.__clients[clients[0]].group = None
