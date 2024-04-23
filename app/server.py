@@ -28,9 +28,9 @@ def main():
         while chat_server.is_alive():
             chat_server.wait(timeout=1.0)
     except KeyboardInterrupt:
-        pass
+        logger.info('Stopping server.')
 
-    logger.info('Stopped server...')
+    logger.info('Stopped server.')
 
 
 if __name__ == '__main__':

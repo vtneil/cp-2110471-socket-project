@@ -12,6 +12,8 @@ class Client:
         self.__name = name
         self.__address = (host, port)
 
+        self.__status: bool = False
+
     @abstractmethod
     def send(self, data: Any):
         pass
@@ -23,6 +25,18 @@ class Client:
     def transaction(self, data: Any, buffer_size: int = 16384):
         self.send(data)
         return self.receive(buffer_size)
+
+    @property
+    def status(self) -> bool:
+        return self.__status
+
+    @property
+    def _status(self) -> bool:
+        return self.__status
+
+    @_status.setter
+    def _status(self, v: bool):
+        self.__status = v
 
     @property
     def name(self) -> str:
@@ -40,16 +54,28 @@ class Client:
 
 
 class TcpClient(Client):
-    def __init__(self, name: str, remote_host: str, remote_port: int, retry: float = 1.0):
+    def __init__(self, name: str,
+                 remote_host: str,
+                 remote_port: int,
+                 retry: float = 1.0,
+                 max_retries: int = 3):
         super().__init__(name, remote_host, remote_port, new_socket('tcp'))
 
         while True:
             try:
-                self._sock.connect(self.address)
+                try:
+                    self._sock.connect(self.address)
+                    self._status = True
+                    break
+                except socket.error:
+                    if not max_retries:
+                        break
+                    while max_retries := max_retries - 1:
+                        logger.error(f'Error connecting to server, retrying in {retry} s... ({max_retries})')
+                        time.sleep(retry)
+            except KeyboardInterrupt:
+                logger.warning(f'User interrupted connection retry! Exiting...')
                 break
-            except socket.error:
-                logger.error(f'Error connecting to server, retrying in {retry} s...')
-                time.sleep(retry)
 
     def send(self, data: Any):
         try:

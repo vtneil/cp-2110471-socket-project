@@ -1,0 +1,121 @@
+Screen {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 3fr;
+}
+
+Left {
+    height: 100%;
+    layout: grid;
+    grid-size: 1 3;
+    grid-rows: 2fr 5fr 3fr;
+}
+
+Top {
+    height: 100%;
+}
+
+CreateGroup {
+    layout: horizontal;
+    margin: 1;
+}
+JoinGroup{
+    layout: horizontal;
+    margin: 1;
+}
+.topInput {
+    width: 80%;
+}
+.topButton {
+}
+
+Middle {
+    height: 100%;
+}
+ChatBox{
+    background: cyan;
+    layout: horizontal;
+    background: cyan 20%;
+    color: white;
+    border: solid cyan;
+}
+Box{
+    layout: horizontal;
+    align: right middle;
+}
+#startChat {
+    margin-right: 1;
+}
+#pinChat{
+    margin-right: 1;
+}
+.chatBoxName{
+    align: left middle;
+}
+
+Bottom {
+    height: 100%;
+    grid-size: 1 2;
+    grid-rows: 3fr 1fr;
+}
+Broadcast {
+    layout: horizontal;
+}
+Announcement {
+    background: red;
+    layout: horizontal;
+    background: red 20%;
+    color: white;
+    border: solid red;
+}
+
+Right {
+    height: 100%;
+}
+
+
+ChatName {
+    layout: horizontal;
+    background: blue 20%;
+    color: white;
+    border: solid blue;
+    align: center middle;
+}
+#chatName {
+    align: center middle;
+    background: blue;
+}
+#switch{
+    align: right middle;
+    background: red;
+}
+
+InputText {
+    layout: horizontal;
+}
+
+#textBox {
+    max-width: 75%;
+    margin: 1 1;
+}
+
+#sendButton {
+    margin: 1 1;
+}
+
+#sendFileButton {
+    margin: 1 1;
+}
+
+.message {
+    border: round cyan 50%;
+}
+
+MessageBox {
+    align: left top
+}
+
+Switch {
+    height: auto;
+    width: auto;
+}

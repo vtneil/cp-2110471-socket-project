@@ -106,6 +106,10 @@ def new_message_proto(src: User | None,
     )
 
 
+def validate_message(message: MessageProtocol):
+    return message and isinstance(message, MessageProtocol)
+
+
 def new_file_proto(filename: str,
                    content: bytes):
     return FileProtocol(

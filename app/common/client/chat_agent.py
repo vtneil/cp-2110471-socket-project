@@ -5,6 +5,7 @@ import queue
 
 from .. import *
 from . import TcpClient
+from app.common.types import *
 
 
 def single(func):
@@ -37,6 +38,11 @@ class ChatAgent:
         # Master client: for control transactions
         logger.info('Setting up connections for you...')
         self.__master_client = TcpClient(client_name, remote_address[0], remote_address[1])
+
+        # Guard test connection before proceeding
+        if not self.__master_client.status:
+            raise ConnectionError('Connection with the server failed!')
+
         self.__slave_clients = [TcpClient(client_name, remote_address[0], remote_address[1]) for _ in
                                 range(open_sockets)]
         self.__sock_lock = threading.Lock()
@@ -50,7 +56,7 @@ class ChatAgent:
 
         # Slave client: for receiving data
         self.__slave_flag = threading.Event()
-        self.__receive_queue: queue.Queue[MessageProtocol] = queue.Queue()
+        self.__receive_buffer: Buffer[MessageProtocol] = Buffer()
         self.__slave_orchestrator, self.__slave_threads = self.__start_receive(recv_callback)
 
         # Local network broadcast
@@ -76,7 +82,7 @@ class ChatAgent:
         try:
             if not self.__is_stop:
                 self.__is_stop = True
-                logger.info('Stopping slave thread...')
+                logger.info('Stopping slave threads...')
                 self.__slave_flag.set()
                 self.__slave_orchestrator.join()
                 for thr in self.__slave_threads:
@@ -273,7 +279,7 @@ class ChatAgent:
             while not self.__slave_flag.is_set():
                 rx = client.receive()
                 if rx and isinstance(rx, MessageProtocol):
-                    self.__receive_queue.put(rx)
+                    self.__receive_buffer.put(rx)
 
         def message_orchestration():
             if not callback:
@@ -281,8 +287,8 @@ class ChatAgent:
 
             # Get from queue and call the callback function
             while not self.__slave_flag.is_set():
-                while not self.__receive_queue.empty():
-                    data = self.__receive_queue.get()
+                while not self.__receive_buffer.empty():
+                    data = self.__receive_buffer.get()
                     callback(data)
 
         threads = [threading.Thread(
