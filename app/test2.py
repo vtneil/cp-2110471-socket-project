@@ -5,7 +5,7 @@ if __name__ == "__main__":
 
     try:
         with AppGUI(client_name=client_name,
-                    remote_host='chat.vt.in.th',
+                    remote_host='localhost',
                     remote_port=50000) as app:
             app.run()
 

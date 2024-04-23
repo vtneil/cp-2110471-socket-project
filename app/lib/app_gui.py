@@ -56,7 +56,7 @@ class Left(Static):
 class Top(Static):
     def compose(self):
         yield CreateGroup()
-        yield JoinGroup()
+        # yield JoinGroup()
 
 
 class CreateGroup(Static):
@@ -203,6 +203,7 @@ class SwitchMode(Static):
 # * Input message and send Button div
 # TODO apply send message function
 class InputText(Static):
+    message_to_send = reactive("")
     def compose(self):
         yield Input(placeholder='text something...', id='textBox')
         yield Button('send', variant='primary', id='sendButton')
@@ -229,7 +230,7 @@ class AppGUI(App):
             disc_callback=None
         )
 
-        self.message_to_send = 'asfasf'
+        self.message_to_send = ''
         self.groupName = ''
 
         self.recv_count = 0
@@ -390,19 +391,24 @@ class AppGUI(App):
         # self.agent.send_private('vt', 'safgsfgdjshf')
         self.dark = not self.dark
 
-        if self.client_name == 'x':
-            self.chat('y')
-        if self.client_name == 'y':
-            self.chat('x')
+        if self.client_name == 'a':
+            self.chat('b')
+        if self.client_name == 'b':
+            self.chat('a')
 
         chat_container = self.query_one("#chat")
         if self.src[1]:
             new_message = MessageBox(sender='HIII', message='HIII')
             chat_container.mount(new_message)
 
+    @on(Input.Changed, '#textBox') 
+    def textInputHandler(self,event:Input.Changed) -> None :
+        self.query_one(InputText).message_to_send = event.value
+        self.message_to_send = self.query_one(InputText).message_to_send
+
     @on(Button.Pressed, '#sendButton')
     def action_add_message(self) -> None:
-        self.message_to_send = str(self.recv_count)
+        # self.message_to_send = str(self.recv_count)
         if self.src[0]:
             self.agent.send_group(group_name=self.src[0],
                                   data_type=MessageProtocolCode.DATA.PLAIN_TEXT,
@@ -428,6 +434,45 @@ class AppGUI(App):
             )
 
         self.refresh_chat_messages()
+
+    @on(Button.Pressed, '#sendFileButton')
+    def action_add_file(self) -> None:
+        if os.path.isfile(self.message_to_send):
+            with open(self.message_to_send, mode='rb') as f:
+                file_content: bytes = f.read()
+                file_proto = new_file_proto(filename=os.path.basename(self.message_to_send),
+                                            content=file_content)
+                if self.src[0]:
+                    self.agent.send_group(group_name=self.src[0],
+                                        data_type=MessageProtocolCode.DATA.FILE,
+                                        data=file_proto)
+                    self.store_chat(
+                        self.src[0],
+                        MessageInfo(
+                            sender=f'You {datetime_fmt()}',
+                            body=f'Sent a file'
+                        )
+                    )
+
+                else:
+                    self.agent.send_private(recipient=self.src[1],
+                                            data_type=MessageProtocolCode.DATA.FILE,
+                                            data=file_proto)
+                    self.store_chat(
+                        self.src[1],
+                        MessageInfo(
+                            sender=f'You {datetime_fmt()}',
+                            body=f'Sent a file'
+                        )
+                    )
+            self.refresh_chat_messages()
+            return 0
+        else:
+            logger.error(f'File {self.message_to_send} doesn\'t exist!')
+            return 1
+        
+
+
 
     # create Group
     @on(Input.Changed, '#createGroupInput')
