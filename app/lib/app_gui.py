@@ -123,6 +123,7 @@ class Middle(Static):
             container.mount(i)
         for i in chatboxes:
             container.mount(i)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Event handler called when a button is pressed."""
         button_id = event.button.id
@@ -181,10 +182,10 @@ class Bottom(Static):
             yield Announcement()
         yield Broadcast()
     
-    @on(Button.Pressed , '#broadCastButton')
-    def setAccounce(self):
-        container = self.query_one('#announcementList')
-        container.mount(Announcement(label=self.query_one(Broadcast).broadcastMessage))
+    # @on(Button.Pressed , '#broadCastButton')
+    # def setAccounce(self):
+    #     container = self.query_one('#announcementList')
+    #     container.mount(Announcement(label=self.query_one(Broadcast).broadcastMessage))
 
 class Announcement(Static):
     def __init__(self,label ='announcement text' ):
@@ -196,14 +197,12 @@ class Announcement(Static):
 
 
 class Broadcast(Static):
-    def __init__(self):
-        super().__init__();
-        self.broadcastMessage = ''
+    broadcastMessage = reactive('')
+    # def __init__(self):
+    #     super().__init__();
     def compose(self):
         yield Input(id='broadCastInput', classes='topInput')
-        yield Button('broadcast', id='broadcastButton', classes='topButton')
-
-
+        yield Button('broadcast', id='broadCastButton', classes='topButton')
 # !======================================================================================
 
 # ! ============================= Right side =============================================
@@ -211,6 +210,10 @@ class Broadcast(Static):
 
 
 class Right(Static):
+    BINDINGS = [
+        ('e' , 'refresh_right' , 'To Refresh Right')
+    ]
+    chat_name = reactive('default',recompose=True)
     def __init__(self,
                  m_buffer: MessageInfoDict,
                  g_buffer: MessageInfoDict,
@@ -224,7 +227,7 @@ class Right(Static):
 
     def compose(self) -> ComposeResult:
         # yield Label('wee')
-        yield ChatName(chatname=self.chatname)
+        yield ChatName(self.chat_name)
 
         with ScrollableContainer(id='chat'):
             if self.src[1] in self.m_buffer:
@@ -246,9 +249,10 @@ class Right(Static):
 
 # TODO give Title of chatroom
 class ChatName(Static):
-    def __init__(self,chatname):
+    def __init__(self,chat_name):
         super().__init__()
-        self.chat_name = chatname
+        self.chat_name = chat_name
+
     def compose(self):
         yield Label(self.chat_name, id='chatName')
         yield Button('switch', id='switch')
@@ -468,6 +472,19 @@ class AppGUI(App):
                 new_message = MessageBox(sender=message_info.sender, message=message_info.body)
                 chat_container.mount(new_message)
         chat_container.scroll_end()
+    
+    def refresh_annoucement(self):
+        chat_container = self.query_one("#chat")
+        chat_container.remove_children('*')
+        if self.src[1] in self.buffer.private:
+            for message_info in self.buffer.private[self.src[1]]:
+                new_message = MessageBox(sender=message_info.sender, message=message_info.body)
+                chat_container.mount(new_message)
+        elif self.src[0] in self.buffer.group:
+            for message_info in self.buffer.group[self.src[0]]:
+                new_message = MessageBox(sender=message_info.sender, message=message_info.body)
+                chat_container.mount(new_message)
+        chat_container.scroll_end()
 
     @on(Button.Pressed, '#switch')
     def switch(self):
@@ -481,10 +498,10 @@ class AppGUI(App):
         #     self.chat('a')
         #///////////for test purpose only //////////////
 
-        chat_container = self.query_one("#chat")
-        if self.src[1]:
-            new_message = MessageBox(sender='HIII', message='HIII')
-            chat_container.mount(new_message)
+        # chat_container = self.query_one("#chat")
+        # if self.src[1]:
+        #     new_message = MessageBox(sender='HIII', message='HIII')
+        #     chat_container.mount(new_message)
 
     @on(Input.Changed, '#textBox') 
     def textInputHandler(self,event:Input.Changed) -> None :
@@ -558,31 +575,33 @@ class AppGUI(App):
             logger.error(f'File {self.message_to_send} doesn\'t exist!')
             return 1
 
-    # create Group
-    @on(Input.Changed, '#createGroupInput')
-    def groupNameHandler(self, event: Input.Changed) -> None:
+    #create Group
+    @on(Input.Changed , '#createGroupInput')
+    def groupNameHandler(self,event:Input.Changed) -> None:
         self.query_one(CreateGroup).groupname = event.value
-
-    @on(Button.Pressed, '#createGroupButton')
+    @on(Button.Pressed , '#createGroupButton')
     def createGroup(self):
-        if (self.src[0]): self.agent.leave_group(self.src[0])
-        if self.agent.create_group(group_name=self.query_one(CreateGroup).groupname) == MessageProtocolResponse.OK:
-            print("GroupName", self.query_one(CreateGroup).groupname)
-            self.query_one(CreateGroup).groupname = ''
-
+        log('create button was pressed')
+        if self.agent.create_group(group_name=self.query_one(CreateGroup).groupname) == MessageProtocolResponse.OK :
+            print("GroupName",self.query_one(CreateGroup).groupname)
+    
     #Annouce broadcast
     @on(Input.Changed , '#broadCastInput')
     def annouceHandler(self,event:Input.Changed) -> None:
         self.query_one(Broadcast).broadcastMessage = event.value
+    
     @on(Button.Pressed , '#broadCastButton')
     def sendAnnouce(self):
+        log('broadcast button was pressed')
         self.agent.announce(data=self.query_one(Broadcast).broadcastMessage)
-        self.query_one(Broadcast).broadcastMessage = ''
-
+        container = self.query_one('#announcementList')
+        container.mount(Announcement(label=self.query_one(Broadcast).broadcastMessage))
+        self.buffer.announcement.append(MessageInfo(sender='To Everyone',body=self.query_one(Broadcast).broadcastMessage))
 
     def on_mount(self) -> None:
         def update_chatname(new_chatname:str) ->None:
-            self.query_one(ChatName).chat_name = new_chatname
+            log('pressed chatnamae =',new_chatname)
+            self.query_one(Right).chat_name = new_chatname
         self.watch(self.query_one(Middle) , 'pressed_chatName' , update_chatname)
 
     @on(Button.Pressed, '#startChat')
