@@ -138,6 +138,10 @@ class AppCLI:
                 'quit', 'Exit the application',
                 callback=self.__cmd_quit,
                 aliases=['exit', 'q']
+            ),
+            ProgramCommand(
+                'clear', 'Clear the screen',
+                callback=lambda _: print("\033[2J\033[H", end="", flush=True) or 1
             )
         )
 

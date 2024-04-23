@@ -20,7 +20,8 @@ if __name__ == "__main__":
         remote_host_port: tuple[str, int] = tmp[0], int(tmp[1])
 
     else:
-        remote_host_port: tuple[str, int] = (REMOTE_HOST, REMOTE_TCP_PORT)
+        tmp = input('Server address (Host:Port), e.g., localhost:50000: ').strip().split(':')
+        remote_host_port: tuple[str, int] = tmp[0], int(tmp[1])
 
     if len(sys.argv) > 2 and sys.argv[2]:
         try:
@@ -28,7 +29,7 @@ if __name__ == "__main__":
         except ValueError:
             num_connections = 4
     else:
-        num_connections = 4
+        num_connections = int(input('Number of connections to be made (default: 4): ').strip())
 
     print(f'Connection will be made to {remote_host_port[0]}:{remote_host_port[1]} using {num_connections} sockets')
 
@@ -39,7 +40,7 @@ if __name__ == "__main__":
 
     print('#' * 128)
     print('#' + ' ' * 126 + '#')
-    print('#' + f'CP-2110471 SOCKET CHAT APPLICATION V{__version__}'.center(126) + '#')
+    print('#' + f'CP-2110471 SOCKET CHAT APPLICATION (CLI VERSION) V{__version__}'.center(126) + '#')
     print('#' + ' ' * 126 + '#')
     print('#' + f'Welcome, {client_name}!'.center(126) + '#')
     print('#' + f'Type \"help\" in the command prompt for more info.'.center(126) + '#')
