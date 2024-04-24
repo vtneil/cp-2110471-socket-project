@@ -292,6 +292,10 @@ class InputText(Static):
 
 # ! ============================ Control center ==========================================
 class AppGUI(App):
+
+    BINDINGS = [
+        ('r','refresh_announce','Refresh Announce')
+    ]
     CSS_PATH = 'chat.tcss'
 
     def __init__(self,
@@ -324,6 +328,8 @@ class AppGUI(App):
         # Buffers
         self.buffer: MessageInfoBuffer = MessageInfoBuffer()
 
+        
+
         # Success message
         #
 
@@ -334,7 +340,7 @@ class AppGUI(App):
                 self.buffer.group[self.src[0]] = list()
             self.buffer.group[self.src[0]].extend(message_infos)
 
-        else:
+        elif self.src[1]:
             # Private message
             if self.src[1] not in  self.buffer.private.keys():
                 self.buffer.private[self.src[1]] = list()
@@ -460,6 +466,9 @@ class AppGUI(App):
                     g_buffer=self.buffer.group,
                     src=self.src,
                     chatname=self.chatname)
+    def action_refresh_announce(self):
+        self.refresh_annoucement()
+        self.refresh_chat_messages()
 
     def refresh_chat_messages(self):
         chat_container = self.query_one("#chat")
