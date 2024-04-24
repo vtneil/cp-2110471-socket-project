@@ -395,10 +395,11 @@ class AppGUI(App):
         else:
             # Other formats
             if message.message_flag and message.message_flag == MessageProtocolFlag.ANNOUNCE:
-                announce_msg = f'[{datetime_fmt()}] Announcement from {message.src.username}: {message.body}'
+                announce_msg = f'[{datetime_fmt()}] {message.src.username}: {message.body}'
 
                 self.buffer.announcement.append(announce_msg)
                 print(announce_msg)
+                self.refresh_annoucement()
 
             else:
                 if self.src[0]:
@@ -421,7 +422,7 @@ class AppGUI(App):
 
                 print(f'[{datetime_fmt()}] {message.src.username}: {message.body}')
 
-        self.refresh_chat_messages()
+                self.refresh_chat_messages()
 
     def on_discovery(self, message: MessageProtocol):
         if not validate_message(message):
@@ -473,13 +474,13 @@ class AppGUI(App):
                 chat_container.mount(new_message)
         chat_container.scroll_end()
     
-    # def refresh_annoucement(self):
-    #     ann_container = self.query_one("#announcementList")
-    #     ann_container.remove_children('*')
-    #     for message_info in self.buffer.private[self.src[1]]:
-    #         new_message = MessageBox(sender=message_info.sender, message=message_info.body)
-    #         ann_container.mount(new_message)
-    #     ann_container.scroll_end()
+    def refresh_annoucement(self):
+        ann_container = self.query_one("#announcementList")
+        ann_container.remove_children('*')
+        for message_info in self.buffer.announcement:
+            new_message = Announcement(label=message_info)
+            ann_container.mount(new_message)
+        ann_container.scroll_end()
 
     @on(Button.Pressed, '#switch')
     def switch(self):
@@ -590,9 +591,9 @@ class AppGUI(App):
         log('broadcast button was pressed')
         self.agent.announce(data=self.query_one(Broadcast).broadcastMessage)
         container = self.query_one('#announcementList')
-        container.mount(Announcement(label=self.query_one(Broadcast).broadcastMessage))
-        self.buffer.announcement.append(MessageInfo(sender='To Everyone',body=self.query_one(Broadcast).broadcastMessage))
-
+        # container.mount(Announcement(label=self.query_one(Broadcast).broadcastMessage))
+        self.buffer.announcement.append(self.query_one(Broadcast).broadcastMessage)
+        self.refresh_annoucement()
     def on_mount(self) -> None:
         def update_chatname(new_chatname:str) ->None:
             log('pressed chatnamae =',new_chatname)
